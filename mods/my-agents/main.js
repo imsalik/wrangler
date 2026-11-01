@@ -50,6 +50,9 @@ const SORTS = [
 const sortOf = () => SORTS.find((s) => s.id === shared("agents.sort")) ?? SORTS[0];
 const SECTION = { 4: "Needs you", 3: "Done", 2: "Working", 1: "Idle" };
 const SECTION_STATUS = { 4: "blocked", 3: "done", 2: "working" };
+// personal: priority view keeps Working at the bottom, capped until "more"; everything waiting on you stays on top.
+const BOTTOM = new Set(["sec-2"]);
+const LIMIT = 3;
 
 function duration(ms) {
   const m = Math.floor(ms / 60000);
@@ -58,6 +61,25 @@ function duration(ms) {
   const h = Math.floor(m / 60);
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
+
+// personal: quits an agent with ctrl-c, one press at a time (a half-typed prompt takes one more) until its
+// foreground process changes, so no press lands in the shell after it.
+async function quit(address) {
+  const fg = async () => {
+    const r = await exec("hc", ["get", address, "--json"]);
+    try { return JSON.parse(r.stdout).foreground?.pid ?? null; } catch { return null; }
+  };
+  const was = await fg();
+  if (was == null) return;
+  for (let i = 0; i < 3; i++) {
+    await exec("hc", ["keys", address, "ctrl+c"]);
+    await exec("sleep", ["0.5"]);
+    if ((await fg()) !== was) return;
+  }
+}
+
+// personal: how long since a waiting agent last changed.
+const ago = (ms) => (ms < 60000 ? "just now" : `${duration(ms)} ago`);
 
 // The agent's icon from the app's program table: a one-color glyph or a picture.
 function icon(p, size, color) {
@@ -69,6 +91,7 @@ export default class Agents extends View {
   init(_props, cx) {
     if (props()?.sortMenu) return;
     this.folded = new Set();
+    this.more = new Set();
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
     this.pins = JSON.parse(localStorage.getItem("pins") ?? "[]");
@@ -365,6 +388,23 @@ export default class Agents extends View {
           cx.notify();
         })
         .child(svg(`mods/workspace-chrome/${isPinned ? "pin-off" : "pin"}.svg`).size(13));
+      // personal: idle agents quit from the row; the pane keeps a shell.
+      const close = div()
+        .id(`close-${a.address}`)
+        .flex_none()
+        .p(2)
+        .rounded(4)
+        .text_color(t.dim)
+        .cursor_pointer()
+        .hover((s) => s.bg(t.hover).text_color(t.blocked))
+        .tooltip("Quit agent")
+        .on_click((_e, cx) => {
+          cx.stop_propagation();
+          cx.spawn(() => quit(a.address));
+          this.hovered = null;
+          cx.notify();
+        })
+        .child(svg("mods/workspace-chrome/x.svg").size(13));
       // Under a space header the space goes without saying; an automatic tab number says nothing.
       // Without a space header above (priority, pinned) the row names its space.
       const full = byPriority || isPinned;
@@ -391,7 +431,8 @@ export default class Agents extends View {
             cx.notify();
           })).child(pic)))
         .when(this.hovered === a.address, el => el.child(pin))
-        .when(this.hovered !== a.address && Boolean(when), el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(duration(now - when))))
+        .when(this.hovered === a.address && rankOf(a) === RANK.idle, el => el.child(close))
+        .when(this.hovered !== a.address && Boolean(when), el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(a.status === "working" ? duration(now - when) : ago(now - when))))
         .child(this.status(t, a, byPriority && !isPinned));
       return v_flex()
         .id(`ag-${a.address}`)
@@ -453,9 +494,35 @@ export default class Agents extends View {
           .when(!byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top }, true)))
           .child(svg("mods/workspace-chrome/chevron-right.svg").size(11).flex_none().text_color(t.dim)));
     };
-    const rows = collapsed
-      ? list.flatMap(withKids)
-      : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : g.members.flatMap(withKids))]);
+    const capped = (g) => byPriority && BOTTOM.has(g.id) && g.members.length > LIMIT;
+    const moreRow = (g) => {
+      const open = this.more.has(g.id);
+      return h_flex()
+        .id(`more-${g.id}`)
+        .px(8)
+        .h(24)
+        .flex_none()
+        .items_center()
+        .text_size(11.5)
+        .text_color(t.dim)
+        .cursor_pointer()
+        .hover((s) => s.text_color(t.foreground))
+        .on_click((_e, cx) => {
+          open ? this.more.delete(g.id) : this.more.add(g.id);
+          cx.notify();
+        })
+        .child(open ? "Show less" : `${g.members.length - LIMIT} more`);
+    };
+    const body = (g) => {
+      if (this.folded.has(g.id)) return [];
+      if (!capped(g)) return g.members.flatMap(withKids);
+      const some = this.more.has(g.id) ? g.members : g.members.slice(0, LIMIT);
+      return [...some.flatMap(withKids), moreRow(g)];
+    };
+    const section = (gs) => gs.flatMap((g) => [header(g), ...body(g)]);
+    const split = byPriority && !collapsed;
+    const rows = collapsed ? list.flatMap(withKids) : section(split ? groups.filter((g) => !BOTTOM.has(g.id)) : groups);
+    const bottom = split ? section(groups.filter((g) => BOTTOM.has(g.id))) : [];
 
     return v_flex()
       .size_full()
@@ -501,7 +568,8 @@ export default class Agents extends View {
       .when(list.length === 0 && !collapsed, (el) =>
         el.child(div().px(12).text_size(12).text_color(t.dim).child("No agents yet. Start one from + in the tabs.")),
       )
-      .child(v_flex().id("ag-list").flex_1().min_h(0).px(collapsed ? 0 : 8).overflow_y_scrollbar().mode("always").children(rows))
+      .child(v_flex().id("ag-list").flex_1().min_h(rows.length && bottom.length ? 96 : 0).px(collapsed ? 0 : 8).overflow_y_scrollbar().mode("always").children(rows))
+      .when(bottom.length > 0, (el) => el.child(v_flex().id("ag-bottom").flex_shrink_1().min_h(0).px(8).pb(4).overflow_y_scroll().children(bottom)))
       .child(
         h_flex()
           .h(28)
