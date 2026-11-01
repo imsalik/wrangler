@@ -333,6 +333,11 @@ export async function until(fn, tries = 60) {
 const first = (n) => (n.split ? first(n.children[0]) : n.pane);
 const leaves = (n) => (n.split ? n.children.flatMap(leaves) : [n.pane]);
 
+// Fixed script: the program and its arguments (task included, appended by Herdr) stay "$@", never shell text.
+const LOGIN = `exec "\${SHELL:-/bin/sh}" -lic 'exec "$@"' sh "$@"`;
+/** On another machine, argv through its user's login shell (its profile's PATH: ~/.local/bin and the like). */
+export const viaLogin = (argv, on) => (on && argv?.length ? ["sh", "-c", LOGIN, "sh", ...argv] : argv);
+
 /** The layout's first terminal pane whose argv matches, or null. */
 export function leafFor(layout, match) {
   for (const t of layout?.tabs ?? []) for (const p of leaves(t.root)) if (p.argv?.length && match(p.argv)) return p;
@@ -502,6 +507,7 @@ export async function apply({ folder, machine = null, layout, agent = null, task
   const target = agent ? leafFor({ tabs }, agent) : null;
   if (agent && args.length) for (const t of tabs) for (const p of leaves(t.root)) if (p.argv?.length && agent(p.argv)) p.argv = [p.argv[0], ...args, ...p.argv.slice(1)];
   if (target && task && !tabs.some((t) => first(t.root) === target)) target.argv = [...target.argv, task];
+  if (machine) for (const t of tabs) for (const p of leaves(t.root)) if (p.argv?.length) p.argv = viaLogin(p.argv, machine);
   const said = (p) => (p === target && task ? { task } : {});
   const had = new Set(spaces().map((s) => s.id));
   const lead = first(tabs[0].root);

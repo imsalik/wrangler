@@ -20,7 +20,7 @@
 
 import { View, div } from "gpui-kit";
 import { agents, exec, focused, nextCommand, notify, openOverlay, panes, pickFolder, run, spaces, watchFolder } from "herdr";
-import { apply, bases, basesAge, capture, checkedOut, checkout, checkoutAge, knownData, mru, ownerNow, peekBases, peekCheckout, dir, expand, freeId, git, gitr, load, make, owner, place, spaceFor, tilde, track, until, update, used, watchDir, worktree } from "./lib.js";
+import { apply, bases, basesAge, capture, checkedOut, checkout, checkoutAge, knownData, mru, ownerNow, peekBases, peekCheckout, dir, expand, freeId, git, gitr, load, make, owner, place, spaceFor, tilde, track, until, update, used, viaLogin, watchDir, worktree } from "./lib.js";
 import { agentRun, branchName, claudeArgs, isAgent, tempBranch, titleOf } from "./agent.js";
 
 const busy = new Set();
@@ -179,7 +179,7 @@ async function launch(o, stage = () => {}) {
   if (cmd && !tasked) {
     stage(`Starting ${key}…`);
     const known = new Set(spaces().find((x) => x.id === space)?.tabs.map((x) => x.id) ?? []);
-    run("tab.new", { space, folder, name: prompt ? titleOf(prompt) : key, argv: [...cmd, ...extra], ...(prompt ? { task: prompt } : {}) });
+    run("tab.new", { space, folder, name: prompt ? titleOf(prompt) : key, argv: viaLogin([...cmd, ...extra], machine), ...(prompt ? { task: prompt } : {}) });
     tab = await until(() => spaces().find((x) => x.id === space)?.tabs.find((x) => !known.has(x.id))?.id);
     if (!tab) throw new Error(`The ${key} tab didn't appear in time.`);
     run("tab.select", { id: tab });

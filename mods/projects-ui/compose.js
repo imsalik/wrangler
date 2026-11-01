@@ -1,12 +1,23 @@
 // The "New agent" dialog: project, This folder | New worktree (optional branch, base), agent (programs' agents); Open runs it on the host.
 import { div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { knownAgents, panes, spaces } from "herdr";
+import { exec, knownAgents, panes, spaces } from "herdr";
 import { Dropdown, ICON, ago, badge, basesOf, closeSelf, follow, headed, newReq, projects, reqState, send, sendJson, shownSpace, spinner, summary, tilde, worktreePath } from "./ui.js";
 
 const leaves = (n) => (n.split ? n.children.flatMap(leaves) : [n.pane]);
 const agentLeaf = (layout, key) => (layout?.tabs ?? []).some((t) => leaves(t.root).some((p) => p.argv?.[0]?.split("/").pop() === key));
 const CLAUDE = { key: "claude", name: "Claude Code", icon: "icons/claude.svg", tint: false };
+// Fixed script; program names arrive as "$@", never as shell text.
+const FOUND = `exec "\${SHELL:-/bin/sh}" -lic 'for p; do command -v "$p" >/dev/null 2>&1 && printf "wr-ok:%s\\n" "$p"; done' sh "$@"`;
+/** Installed agents where `on` is; on another machine its login shell answers too (plain sh misses the profile's PATH). */
+async function installedAgents(on) {
+  const l = (await knownAgents(on ? { on } : undefined)).filter((a) => a.agent && a.key !== "agent");
+  if (!on) return l.filter((a) => a.installed);
+  const prog = (a) => a.run?.[0] ?? a.key;
+  const r = await exec("sh", ["-c", FOUND, "sh", ...l.map(prog)], { on }).catch(() => null);
+  const ok = new Set((r?.stdout ?? "").split("\n").filter((x) => x.startsWith("wr-ok:")).map((x) => x.slice(6)));
+  return l.filter((a) => a.installed || ok.has(prog(a)));
+}
 const icon = (a, size, color) => (!a?.icon ? null : a.tint ? svg(a.icon).size(size).flex_none().text_color(color) : image(a.icon).w(size).h(size).flex_none());
 
 export const views = {
@@ -39,10 +50,8 @@ export const views = {
         },
       });
       this.agents = [CLAUDE];
-      knownAgents().then((l) => {
-        this.agents = l.filter((a) => a.agent && a.installed && a.key !== "agent");
-        if (!this.agents.some((a) => a.key === this.agent)) this.agent = this.agents[0]?.key ?? "none";
-      }).catch(() => null);
+      this.agentsVer = 0;
+      this.loadAgents();
       this.ag = new Dropdown(cx, {
         placeholder: "filter", max: 6,
         items: (f) => this.agents.filter((a) => !f || `${a.key} ${a.name}`.toLowerCase().includes(f)),
@@ -61,7 +70,7 @@ export const views = {
       else this.proj.trigger.focus();
       cx.timer.after(600, () => { if (!this.typing && !this.proj.open && !this.from.open && !this.fields().some((h) => h.is_focused?.())) this.proj.trigger.focus(); });
       this.loadBases();
-      follow(this, () => this.sync(), () => `${this.agents.length}|${this.typing}|${this.branch.value()}|${this.fields().map((h) => (h.is_focused?.() ? 1 : 0)).join("")}`);
+      follow(this, () => this.sync(), () => `${this.agentsVer}|${this.typing}|${this.branch.value()}|${this.fields().map((h) => (h.is_focused?.() ? 1 : 0)).join("")}`);
     },
     // Picks up fresh bases, a project just added from the list, and the host's progress on Open.
     sync() {
@@ -111,6 +120,19 @@ export const views = {
       this.pid = id;
       this.error = "";
       this.loadBases();
+      this.loadAgents();
+    },
+    // The agent list for the project's machine; a late answer for another machine is dropped.
+    loadAgents() {
+      const on = this.project()?.machine ?? null;
+      if (this.agentsOn === on) return;
+      this.agentsOn = on;
+      installedAgents(on).then((l) => {
+        if (this.agentsOn !== on) return;
+        this.agents = l;
+        this.agentsVer++;
+        if (!l.some((a) => a.key === this.agent)) this.agent = l[0]?.key ?? "none";
+      }).catch(() => null);
     },
     submit(cx) {
       if (this.stage) return;

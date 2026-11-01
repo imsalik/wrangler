@@ -28,13 +28,14 @@ function toggleSidebar() {
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 const expand = (p) => (p === "~" || p?.startsWith("~/") ? home() + p.slice(1) : p);
 const inside = (p, root) => !!p && (p === root || p.startsWith(root + "/"));
-async function git(cwd, args) {
-  try { const r = await exec("git", args, { cwd }); return r.code === 0 ? r.stdout.trim() : null; } catch { return null; }
+async function git(cwd, args, on = null) {
+  try { const r = await exec("git", args, { cwd, ...(on ? { on } : {}) }); return r.code === 0 ? r.stdout.trim() : null; } catch { return null; }
 }
+const machineOf = (address) => (address.includes("/") ? address.split("/")[0] : null);
 function hue(p, ids) {
   const root = expand(p.folder), ps = panes();
   const place = (s) => { const tabs = new Set(s.tabs.map((t) => t.id)); return ps.find((x) => tabs.has(x.tab) && x.cwd)?.cwd || s.folder; };
-  const near = spaces().filter((s) => !s.machine && inside(place(s), root));
+  const near = spaces().filter((s) => (s.machine ?? null) === (p.machine ?? null) && inside(place(s), root));
   const s = near.find((x) => place(x) === root) ?? near[0];
   const c = s && shared("space.colors")?.[s.id];
   if (c) return c.startsWith("#") ? c : (MARK[c] ?? theme()[c]);
@@ -114,38 +115,46 @@ export default class Agents extends View {
       const list = [...this.want];
       this.want.clear();
       cx.spawn(async (cx) => {
-        for (const cwd of list) {
-          const common = await git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
-          const top = common && (await git(cwd, ["rev-parse", "--show-toplevel"]));
+        for (const key of list) {
+          const [on, cwd] = JSON.parse(key);
+          const common = await git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"], on);
+          const top = common && (await git(cwd, ["rev-parse", "--show-toplevel"], on));
           const main = common?.replace(/\/\.git$/, "");
-          this.checkouts.set(cwd, top ? { main, linked: top !== main } : null);
+          this.checkouts.set(key, top ? { main, linked: top !== main } : null);
         }
         cx.notify();
       });
     });
   }
 
-  // personal: the agent's project (by its checkout's main repo), branch (the projects host's cached checkout, else Herdr's,
-  // else the folder name), and whether it's a linked worktree.
+  // personal: the agent's project (by its checkout's main repo, on its machine), branch (the projects host's cached checkout,
+  // else Herdr's, else the folder name), and whether it's a linked worktree.
   where(a) {
     const pane = panes().find((p) => p.pane === a.pane);
-    const cwd = pane?.cwd;
-    if (!cwd || a.address.includes("/")) return null;
-    if (!this.checkouts.has(cwd)) { this.want.add(cwd); return null; }
-    const c = this.checkouts.get(cwd);
-    const inside = (f) => cwd === f || cwd.startsWith(`${f}/`);
-    const p = this.projects.find((x) => !x.machine && (c ? expand(x.folder) === c.main : inside(expand(x.folder))));
+    const cwd = pane?.cwd, on = machineOf(a.address), key = JSON.stringify([on, cwd]);
+    if (!cwd) return null;
+    if (!this.checkouts.has(key)) { this.want.add(key); return null; }
+    const c = this.checkouts.get(key);
+    const local = (f) => (on ? f : expand(f));
+    const p = this.projects.find((x) => (x.machine ?? null) === on && (c ? local(x.folder) === c.main : inside(cwd, local(x.folder))));
     if (!p) return null;
     if (!c) return { p, branch: null, linked: false };
-    const co = globalThis.__wranglerProjects?.memo.get(`co||${cwd}`)?.v;
+    const co = globalThis.__wranglerProjects?.memo.get(`co|${on ?? ""}|${cwd}`)?.v;
     return { p, branch: co?.branch || pane.branch || cwd.split("/").pop(), linked: c.linked };
   }
 
-  projectTitle(t, w, idle) {
+  projectTitle(t, w, idle, remote) {
     const color = hue(w.p, this.projects.map((x) => x.id));
     return h_flex().flex_1().min_w(0).gap(5).items_center()
       .child(h_flex().size(13).flex_none().rounded(4).bg(color).items_center().justify_center().text_size(8.5).font_bold().text_color("#ffffff").child([...w.p.name][0]?.toUpperCase() ?? "?"))
-      .child(div().flex_1().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(w.p.name));
+      .child(div().flex_shrink(1).min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(w.p.name))
+      .when(Boolean(remote), (el) => el.child(remote))
+      .child(div().flex_1());
+  }
+
+  // personal: an agent on another machine: a server icon, its name on hover.
+  remote(t, a, machine) {
+    return div().id(`on-${a.address}`).flex_none().text_color(t.dim).tooltip(`On ${machine}`).child(svg("mods/workspace-chrome/server.svg").size(11));
   }
 
   branchLine(t, w, pad) {
@@ -426,10 +435,10 @@ export default class Agents extends View {
         .items_center()
         .gap(9)
         // personal: project title
-        .child(w ? this.projectTitle(t, w, idle) : h_flex().flex_1().min_w(0).gap(5).items_center()
+        .child(w ? this.projectTitle(t, w, idle, machine && this.remote(t, a, machine)) : h_flex().flex_1().min_w(0).gap(5).items_center()
           .child(div().flex_none().max_w(full && more ? 120 : 200).truncate().text_color(idle ? t.muted : t.foreground).child(name))
+          .when(Boolean(machine), el => el.child(this.remote(t, a, machine)))
           .when(full && Boolean(more), el => el.child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(`\u00b7 ${more}`))))
-        .when(Boolean(machine), el => el.child(div().text_size(10).text_color(t.dim).child(machine)))
         .when(subs.length > 0, el => el.child(fold(a, subs)))
         // personal: agent icon on the right
         .when(Boolean(pic), el => el.child(div().id(`agent-fold-${a.address}`).flex_none()
