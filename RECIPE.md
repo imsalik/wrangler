@@ -1,6 +1,6 @@
 # wrangler
 
-A Herdr window for working on several repos with coding agents. On the left, a Spaces list where worktree spaces sit under their repo, and an Agents list where each agent shows its project, Claude's current task and its branch. The Spaces `+` opens a menu of saved projects (open one with its saved tabs and splits, or start a worktree from it); the Agents `+` opens a "New agent" dialog that starts an agent in a project's folder or in a fresh worktree. A switcher popup lists every agent, the ones that need you first, with a live preview of the selected one's screen. A which-key prefix shows every key while it waits for one. Worktrees started without a branch name get a temp branch that Claude's first prompt renames.
+A keyboard-first Herdr layout for running coding agents across your repos. Prefix keys like tmux and the herdr TUI, plus projects: start an agent in any project, in its own worktree if you want.
 
 ![wrangler](preview.png)
 
