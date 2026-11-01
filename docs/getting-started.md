@@ -52,7 +52,7 @@ Click **+** in the Agents header, or press `ctrl-shift-g` (prefix `⇧A`):
 - **Agent:** any coding agent Herdr finds installed (Claude, Codex, OpenCode, ...).
 - **Branch:** leave it empty and wrangler makes a temporary one.
 
-Press **Open**, then give the agent its first message in the new tab.
+Press `/` to jump to the Project list and type to filter it. Press **Open**, then give the agent its first message in the new tab.
 
 ## 5. Branches name themselves
 

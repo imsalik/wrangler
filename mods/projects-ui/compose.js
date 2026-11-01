@@ -129,6 +129,7 @@ export const views = {
       if (e.key === "escape") return this.close();
       if (e.keystroke === "tab") this.step(1, cx);
       else if (e.keystroke === "shift-tab") this.step(-1, cx);
+      else if ((e.key_char ?? e.key) === "/" && !this.branch.is_focused()) this.proj.show(cx);
       else if (flip && this.whereF.is_focused()) this.where = this.where === "worktree" ? "local" : "worktree";
       else if (e.key === "enter" || e.keystroke === "ctrl-enter") this.submit(cx);
       else return;
@@ -205,7 +206,7 @@ export const views = {
           .child(h_flex().flex_1().min_w(0).gap(6).items_center().text_size(11).text_color(t.dim)
             .when(!!this.stage, (el) => el.child(spinner(t, this.stage)))
             .when(!this.stage, (el) => el.child(this.proj.open || this.ag.open || this.from.open ? "type to filter · ↑↓ · ↵ pick · esc back"
-              : "tab next · ←→ toggle · ↓ list · ↵ open · esc cancel")))
+              : "tab next · ←→ toggle · ↓ list · / project · ↵ open · esc cancel")))
           .child(button("cc-cancel", "Cancel", false, () => this.close()))
           .child(button("cc-go", "Open", true, (cx) => this.submit(cx))));
     },
