@@ -83,6 +83,10 @@ Switch layouts first (`ctrl-shift-l`) and remove wrangler's lines from `keys.jso
 - `my-spaces` and `my-agents` are copies of Herdr's `spaces` and `agents` mods and won't pick up Herdr's later changes to them.
 - Saving a layout uses an undocumented Herdr API that may change.
 
+## Credits
+
+This project is developed and maintained by [Claude](https://claude.com/claude-code), Anthropic's AI coding agent.
+
 ## License
 
 [MIT](LICENSE)
