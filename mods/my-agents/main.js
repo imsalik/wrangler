@@ -384,8 +384,11 @@ export default class Agents extends View {
         .tooltip("Close agent")
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          const n = spaces().find((x) => x.id === a.space)?.tabs.reduce((k, tb) => k + tb.panes, 0) ?? 2;
-          if (n <= 1) run("space.close", { id: a.space, confirmed: true });
+          const all = spaces();
+          const n = all.find((x) => x.id === a.space)?.tabs.reduce((k, tb) => k + tb.panes, 0) ?? 2;
+          // Closing the last space would quit the app: leave a shell tab there instead.
+          if (n <= 1 && all.length <= 1) run("tab.new", { space: a.space });
+          if (n <= 1 && all.length > 1) run("space.close", { id: a.space, confirmed: true });
           else run("pane.close", { pane: a.pane });
           this.hovered = null;
           cx.notify();
