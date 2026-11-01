@@ -28,6 +28,13 @@ function place(s, ps) {
 const rowHeight = ({ tree }) => (tree ? 28 : 30);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
+// personal: the saved project at a repo's main checkout (git) or holding the folder (plain).
+const expand = (f) => (f === "~" || f?.startsWith("~/") ? home() + f.slice(1) : f);
+function projectAt(on, folder, git) {
+  const inside = (root) => folder === root || folder?.startsWith(`${root}/`);
+  return (globalThis.__wranglerProjects?.known?.projects ?? [])
+    .find((x) => (x.machine ?? null) === on && (git ? expand(x.folder) === folder : inside(expand(x.folder))));
+}
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
@@ -236,8 +243,7 @@ export default class Spaces extends View {
   // click opens the project (else a space there), right-click its menu.
   ghost({ g }, t) {
     const [on, git] = JSON.parse(g.repo), main = git.replace(/\/\.git\/?$/, "");
-    const expand = (f) => (f === "~" || f?.startsWith("~/") ? home() + f.slice(1) : f);
-    const p = (globalThis.__wranglerProjects?.known?.projects ?? []).find((x) => (x.machine ?? null) === on && expand(x.folder) === main);
+    const p = projectAt(on, main, true);
     const name = p?.name ?? g.name;
     return h_flex().id(`repo-${on ?? ""}-${main}`).px(8).h(30).flex_none().gap(9).items_center().rounded(8).cursor_pointer().hover((s) => s.bg(t.hover))
       .on_click(() => (p ? run(`projects.open:${p.id}`) : run("space.new", { folder: main, ...(on ? { machine: on } : {}) })))
@@ -313,6 +319,9 @@ export default class Spaces extends View {
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
+    // personal: plain spaces (no saved project) get a hollow avatar
+    const [machine, git] = g ? JSON.parse(g.repo) : [w.machine ?? null, null];
+    const isProject = !tree && (git ? projectAt(machine, git.replace(/\/\.git\/?$/, ""), true) : projectAt(machine, place(w, panes()), false));
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -356,7 +365,10 @@ export default class Spaces extends View {
           .gap(9)
           .items_center()
           .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim)))
-          .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?")))
+          .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).items_center().justify_center().text_size(10.5).font_bold()
+            .when(Boolean(isProject), (a) => a.bg(fill).text_color("#ffffff"))
+            .when(!isProject, (a) => a.border(1).border_color(t.dim).text_color(t.dim))
+            .child([...w.name][0]?.toUpperCase() ?? "?")))
           .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1()),
       );
