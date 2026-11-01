@@ -32,14 +32,15 @@ const common = {
         .child(e.project ? badge(e.project, sp, ps) : svg(ICON(e.icon)).size(14).flex_none().text_color(on ? t.muted : t.dim))
         .child(div().flex_1().min_w(0).truncate().child(e.label))
         .when(!!e.hint, (el) => el.child(div().flex_none().max_w(110).truncate().text_size(11).text_color(t.dim).child(e.hint)))
-        .when(!!e.drop && this.hov === i, (el) => el.child(div().id(`${id}-${i}-rm`).size(22).flex_none().flex().items_center().justify_center().rounded(5)
-          .text_color(t.blocked).opacity(0.7).hover((s) => s.bg(t.raised).opacity(1)).tooltip("Remove project")
-          .on_click((_e, cx) => { cx.stop_propagation(); this.close(); e.drop(); })
-          .child(svg(ICON("x")).size(13))))
         .when(!!e.tree, (el) => el.child(div().id(`${id}-${i}-wt`).size(22).flex_none().flex().items_center().justify_center().rounded(5)
           .text_color(t.accent).opacity(0.7).hover((s) => s.bg(t.raised).opacity(1)).tooltip("New worktree")
           .on_click((_e, cx) => { cx.stop_propagation(); this.close(); e.tree(); })
-          .child(svg(ICON("git-branch")).size(13))));
+          .child(svg(ICON("git-branch")).size(13))))
+        .when(!!e.drop, (el) => el.child(this.hov !== i ? div().size(22).flex_none()
+          : div().id(`${id}-${i}-rm`).size(22).flex_none().flex().items_center().justify_center().rounded(5)
+            .text_color(t.blocked).opacity(0.7).hover((s) => s.bg(t.raised).opacity(1)).tooltip("Remove project")
+            .on_click((_e, cx) => { cx.stop_propagation(); this.close(); e.drop(); })
+            .child(svg(ICON("x")).size(13))));
     };
     const group = (e, i) => {
       const n = e.scroll.length, max = e.max ?? 8, h = 31 * Math.min(n, max);
