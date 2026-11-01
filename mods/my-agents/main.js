@@ -107,9 +107,12 @@ export default class Agents extends View {
     if (!cwd || a.address.includes("/")) return null;
     if (!this.checkouts.has(cwd)) { this.want.add(cwd); return null; }
     const c = this.checkouts.get(cwd);
-    const p = c && this.projects.find((x) => !x.machine && expand(x.folder) === c.main);
+    const inside = (f) => cwd === f || cwd.startsWith(`${f}/`);
+    const p = this.projects.find((x) => !x.machine && (c ? expand(x.folder) === c.main : inside(expand(x.folder))));
+    if (!p) return null;
+    if (!c) return { p, branch: null, linked: false };
     const co = globalThis.__wranglerProjects?.memo.get(`co||${cwd}`)?.v;
-    return p ? { p, branch: co?.branch || pane.branch || cwd.split("/").pop(), linked: c.linked } : null;
+    return { p, branch: co?.branch || pane.branch || cwd.split("/").pop(), linked: c.linked };
   }
 
   projectTitle(t, w, idle) {
@@ -408,9 +411,9 @@ export default class Agents extends View {
         .on_mouse_down("right", () => run(`projects.agent-menu:${a.address}`))
         .child(top)
         .when(showSub, (el) => el.child(
-          div().pb(w ? 3 : 6).mt(-4).text_size(12).truncate().text_color(t.ansi5).child(sub)))
+          div().pb(w?.branch ? 3 : 6).mt(-4).text_size(12).truncate().text_color(t.ansi5).child(sub)))
         // personal: branch line
-        .when(Boolean(w), (el) => el.child(this.branchLine(t, w, 0)));
+        .when(Boolean(w?.branch), (el) => el.child(this.branchLine(t, w, 0)));
     };
 
     // Groups in list order: spaces (grouped) or priority sections. Agents of a
