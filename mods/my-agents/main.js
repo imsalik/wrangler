@@ -62,22 +62,6 @@ function duration(ms) {
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
-// personal: quits an agent with ctrl-c, one press at a time (a half-typed prompt takes one more) until its
-// foreground process changes, so no press lands in the shell after it.
-async function quit(address) {
-  const fg = async () => {
-    const r = await exec("hc", ["get", address, "--json"]);
-    try { return JSON.parse(r.stdout).foreground?.pid ?? null; } catch { return null; }
-  };
-  const was = await fg();
-  if (was == null) return;
-  for (let i = 0; i < 3; i++) {
-    await exec("hc", ["keys", address, "ctrl+c"]);
-    await exec("sleep", ["0.5"]);
-    if ((await fg()) !== was) return;
-  }
-}
-
 // personal: how long since a waiting agent last changed.
 const ago = (ms) => (ms < 60000 ? "just now" : `${duration(ms)} ago`);
 
@@ -388,7 +372,7 @@ export default class Agents extends View {
           cx.notify();
         })
         .child(svg(`mods/workspace-chrome/${isPinned ? "pin-off" : "pin"}.svg`).size(13));
-      // personal: idle agents quit from the row; the pane keeps a shell.
+      // personal: idle agents close from the row: their pane, or their space when it's the only pane there.
       const close = div()
         .id(`close-${a.address}`)
         .flex_none()
@@ -397,10 +381,12 @@ export default class Agents extends View {
         .text_color(t.dim)
         .cursor_pointer()
         .hover((s) => s.bg(t.hover).text_color(t.blocked))
-        .tooltip("Quit agent")
+        .tooltip("Close agent")
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          cx.spawn(() => quit(a.address));
+          const n = spaces().find((x) => x.id === a.space)?.tabs.reduce((k, tb) => k + tb.panes, 0) ?? 2;
+          if (n <= 1) run("space.close", { id: a.space, confirmed: true });
+          else run("pane.close", { pane: a.pane });
           this.hovered = null;
           cx.notify();
         })
