@@ -99,7 +99,7 @@ Any installed mod can add a group with `mods/<name>/prefix.json` (wrangler's is 
 ## Branch renaming
 
 1. New agent with New worktree and an empty Branch creates `<branchPrefix>/<8 hex>` and marks it in git config (`branch.<name>.wranglerTemp`).
-2. Claude started by wrangler gets `--settings ~/.config/herdr-app/data/projects/claude-settings.json` (generated on the first launch). It adds a `UserPromptSubmit` hook running [`hooks/rename-branch.sh`](../hooks/rename-branch.sh). Your own Claude settings are not touched, and `claude` started by hand never renames.
+2. Claude started by wrangler gets `--settings ~/.config/herdr-app/data/projects/claude-settings.json` (generated on the first launch). It adds a `UserPromptSubmit` hook running [`mods/projects/hooks/rename-branch.sh`](../mods/projects/hooks/rename-branch.sh). Your own Claude settings are not touched, and `claude` started by hand never renames.
 3. On the first real prompt (not empty, not a `/command`) on a marked branch, the hook returns at once and, in the background, asks the naming model for `<type>/<slug>`, adds `-2`, `-3` on a clash, runs `git branch -m`, clears the mark, and renames the space if it still has its default name (in the window whose data folder it was given). A reply that is the prompt's own `type` or `slug` placeholder counts as a failure. The folder stays where it is. If naming fails, the temp name stays.
 
 The prompt is [`mods/projects/naming-prompt.txt`](../mods/projects/naming-prompt.txt), or `data/projects/naming-prompt.txt` when that exists. If the hook is missing or not executable, wrangler shows a toast and launches Claude without it.

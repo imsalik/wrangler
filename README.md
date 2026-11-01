@@ -27,17 +27,18 @@ Made for anyone coming from the herdr TUI or tmux who wants the same keyboard-fi
 ## Install
 
 ```sh
-git clone https://github.com/imsalik/wrangler ~/code/wrangler
-cd ~/code/wrangler
-./install.sh                 # or: ./install.sh --no-prefix
+git clone https://github.com/imsalik/wrangler
+cd wrangler
+cp -r mods/* ~/.config/herdr-app/mods/
+cp layouts/* ~/.config/herdr-app/layouts/
 herdr-app do layout.switch '{"name":"wrangler"}'
 ```
 
-`install.sh` symlinks the mods and layout into `~/.config/herdr-app` (or `$HERDR_APP_HOME`) and backs up anything in the way. Keep the clone where it is, and rerun the script after moving it. `ctrl-shift-l` switches back to your own layout.
+Plain Herdr mods and a layout: copy them into your Herdr home (`$HERDR_APP_HOME` if you set one) however you like. Skip `mods/prefix` if you don't want the prefix. Check first that none of the names are taken (`projects`, `projects-ui`, `my-spaces`, `my-agents`, `prefix`, `wrangler.json`). To update, pull and copy again. `ctrl-shift-l` switches back to your own layout.
 
 ## Keys
 
-`install.sh` never edits your `keys.json`. Copy what you want from [`keys.json`](keys.json):
+Nothing is bound for you. Copy what you want from [`keys.json`](keys.json) into `~/.config/herdr-app/keys.json`:
 
 | Key | Does |
 |---|---|
@@ -47,7 +48,7 @@ herdr-app do layout.switch '{"name":"wrangler"}'
 | `ctrl-shift-a` | agent switcher |
 | `ctrl-alt-a` | sends a real `ctrl-a` to the terminal |
 
-The prefix is whichever key you bind to `mod.open:prefix`. Leave it unbound (or install with `--no-prefix`) to go without. After the prefix:
+The prefix is whichever key you bind to `mod.open:prefix`. Leave it unbound (or don't copy `mods/prefix`) to go without. After the prefix:
 
 | Key | Does |
 |---|---|
@@ -72,7 +73,7 @@ Everything is described in the **[reference](docs/reference.md)**, along with ev
 
 ```sh
 cd ~/.config/herdr-app
-rm mods/{projects,projects-ui,my-spaces,my-agents,prefix} layouts/wrangler.json layouts/wrangler-preview.svg
+rm -r mods/{projects,projects-ui,my-spaces,my-agents,prefix} layouts/wrangler.json layouts/wrangler-preview.svg
 ```
 
 Switch layouts first (`ctrl-shift-l`) and remove wrangler's lines from `keys.json`. Worktrees are plain git worktrees.

@@ -7,9 +7,10 @@ Key names below assume the suggested [`keys.json`](../keys.json) bindings, with 
 ## 1. Install and switch to the layout
 
 ```sh
-git clone https://github.com/imsalik/wrangler ~/code/wrangler
-cd ~/code/wrangler
-./install.sh
+git clone https://github.com/imsalik/wrangler
+cd wrangler
+cp -r mods/* ~/.config/herdr-app/mods/
+cp layouts/* ~/.config/herdr-app/layouts/
 herdr-app do layout.switch '{"name":"wrangler"}'
 ```
 
@@ -84,7 +85,7 @@ Press the prefix (`ctrl-a` in the suggested keys) and a panel lists every key yo
 
 ![Prefix panel listing tab, pane, space, app and project keys](images/prefix.png)
 
-Press one to run it; Esc or any other key cancels. Don't want the panel? Set `"show": "hint"` or `"off"` in `data/prefix/config.json`. Don't want the prefix at all? Leave it unbound, or install with `./install.sh --no-prefix`. See [Prefix](reference.md#prefix) to add your own groups or move keys.
+Press one to run it; Esc or any other key cancels. Don't want the panel? Set `"show": "hint"` or `"off"` in `data/prefix/config.json`. Don't want the prefix at all? Leave it unbound, or don't copy `mods/prefix`. See [Prefix](reference.md#prefix) to add your own groups or move keys.
 
 ## Next
 

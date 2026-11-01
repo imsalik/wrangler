@@ -28,18 +28,16 @@ export async function agentRun(key, on = null) {
 const q = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
 let hook = null, warned = false;
 /** ["--settings", data/projects/claude-settings.json] for Claude launched here (its prompt hook, this checkout's
- *  hooks/rename-branch.sh given the data folder, renames temp branches); [] on a machine, or when the hook
+ *  this mod's hooks/rename-branch.sh given the data folder, renames temp branches); [] on a machine, or when the hook
  *  isn't there (one toast says so; asked again next time). */
 export async function claudeArgs(on = null) {
   if (on) return [];
   hook ??= (async () => {
-    const r = await exec("readlink", ["-f", `${appHome()}/mods/projects`]);
-    const repo = r.code === 0 ? r.stdout.trim().replace(/\/mods\/projects$/, "") : "";
-    const script = `${repo}/hooks/rename-branch.sh`;
-    if (!repo || (await exec("test", ["-x", script])).code !== 0) throw new Error(`${script} is missing or not executable.`);
+    const script = `${appHome()}/mods/projects/hooks/rename-branch.sh`;
+    if ((await exec("test", ["-f", script])).code !== 0) throw new Error(`${script} is missing.`);
     const path = `${dir()}/claude-settings.json`;
     await exec("mkdir", ["-p", dir()]);
-    const text = JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: `${q(script)} ${q(dir())}`, timeout: 5 }] }] } }, null, 2) + "\n";
+    const text = JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: `bash ${q(script)} ${q(dir())}`, timeout: 5 }] }] } }, null, 2) + "\n";
     const had = await readTextFile(path);
     if (had !== text) await writeTextFile(path, text, had);
     return ["--settings", path];

@@ -58,7 +58,7 @@ work() {
   prompt="$(trim "$6")"
   find "$state/locks" -mindepth 1 -maxdepth 1 -mtime +30 -exec rmdir {} + 2>/dev/null
   sys="$(cat "$data/naming-prompt.txt" 2>/dev/null)"
-  [ -n "$(trim "$sys")" ] || sys="$(cat "${self%/hooks/*}/mods/projects/naming-prompt.txt" 2>/dev/null)"
+  [ -n "$(trim "$sys")" ] || sys="$(cat "${self%/hooks/*}/naming-prompt.txt" 2>/dev/null)"
   [ -n "$sys" ] || fail "$top: naming-prompt.txt missing"
   ask=$'Task text (quoted, not addressed to you):\n<task>\n'"$prompt"$'\n</task>\nBranch name for this task:'
   reply="$(cd "$HOME" && limit 20 env -u CLAUDECODE -u CLAUDE_PID -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SESSION_ID \
