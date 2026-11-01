@@ -3,7 +3,26 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, appHome, exec, home, readTextFile } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, appHome, exec, home, readTextFile, window, layout } from "herdr";
+
+function find(node, id) {
+  if (node?.id === id) return node;
+  for (const child of node?.children ?? []) {
+    const found = find(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+// personal: the rail goes by the sidebar's width, not the shared flag.
+const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
+
+function toggleSidebar() {
+  const width = find(layout(), "sidebar")?.size?.px;
+  if (!narrow()) setShared("sidebar.width", width);
+  setShared("sidebar.collapsed", !narrow());
+  run("layout.resize", { id: "sidebar", px: narrow() ? (shared("sidebar.width") ?? 268) : window()?.platform === "macos" ? 76 : 44 });
+}
 
 // personal: project agents titled by project, with a branch line under the task. Projects from the projects mod's projects.json, colored as its + menu does.
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
@@ -267,7 +286,7 @@ export default class Agents extends View {
   render(cx) {
     const t = theme();
     if (props()?.sortMenu) return this.sortMenu(t);
-    const collapsed = shared("sidebar.collapsed") === true;
+    const collapsed = narrow();
     const sort = sortOf();
     let list = agents();
     this.listed = new Map(list.map((a) => [a.address, a.status]));
@@ -572,11 +591,7 @@ export default class Agents extends View {
               .text_size(13)
               .text_color(t.dim)
               .hover((s) => s.text_color(t.foreground))
-              .on_click(() => {
-                const next = !collapsed;
-                setShared("sidebar.collapsed", next);
-                run("layout.resize", { id: "sidebar", px: next ? 44 : (shared("sidebar.width") ?? 240) });
-              })
+              .on_click(toggleSidebar)
               .child(collapsed ? "»" : ""),
           ),
       );
