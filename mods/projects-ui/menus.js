@@ -172,7 +172,7 @@ export const views = {
       this.input.on("submit", (e) => this.choose(this.at, e?.secondary));
       this.input.focus();
       cx.timer.after(600, () => this.input.focus());
-      follow(this);
+      follow(this, null, () => this.input.value());
     },
     rows() {
       const f = this.filter.toLowerCase();
