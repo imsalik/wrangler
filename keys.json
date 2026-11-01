@@ -1,0 +1,11 @@
+{
+  "global": {
+    "ctrl-a": "mod.open:prefix",
+    "ctrl-shift-j": "projects.pick",
+    "ctrl-shift-g": "projects.compose",
+    "ctrl-shift-a": "projects.switch"
+  },
+  "terminal": {
+    "ctrl-alt-a": "send:\u0001"
+  }
+}
