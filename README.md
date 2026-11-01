@@ -2,7 +2,7 @@
 
 Projects, git worktrees and coding agents for the [Herdr](https://herdr.dev) desktop app.
 
-I came to the Herdr app from the herdr TUI and tmux, where everything was a keystroke away behind a prefix. wrangler brings that back: one prefix key, then a single key for tabs, panes, spaces, projects and agents, with a panel showing what's available. The project and agent side borrows from [T3 Code](https://github.com/pingdotgg/t3code): repos saved as projects that reopen the way you left them, a New agent dialog that can put each agent in its own worktree, and an agent sidebar that shows each agent's project, task and branch at a glance.
+Made for anyone coming from the herdr TUI or tmux who wants the same keyboard-first flow in the app: a prefix key, then a single key for tabs, panes, spaces, projects and agents, with a panel showing what's available. Projects and the agent sidebar take their cue from [T3 Code](https://github.com/pingdotgg/t3code): repos saved as projects that reopen the way you left them, a New agent dialog that can put each agent in its own worktree, and a sidebar showing each agent's project, task and branch at a glance.
 
 ![wrangler](preview.gif)
 
