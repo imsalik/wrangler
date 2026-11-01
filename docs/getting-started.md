@@ -65,6 +65,8 @@ Each Agents row shows the project, what the agent is working on, and its branch.
 
 The Agents list (Priority sort, the clock button in its header) keeps the agents waiting on you at the top: **Needs you** first, then **Done**, then **Idle**, each with how long ago it stopped ("3m ago"). **Working** agents sit at the bottom with how long they've been running; it shows three, then an "N more" row. Hover an idle agent for an **x** that quits it (ctrl-c until it exits). The pane stays, with a shell in the same folder.
 
+![Agents list: Needs you, Done and Idle on top, Working at the bottom](images/agents-list.png)
+
 ## 6. Switch between agents
 
 Press `ctrl-shift-a` (prefix `a`). Agents that need you come first, then the ones you used most recently. The right side previews the selected agent's screen, live:
