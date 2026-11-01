@@ -56,7 +56,7 @@ Left to right, a row on the `canvas` background, no title bar (`"titlebar": "non
 - not in git: Rename, Close;
 - plus "Add as project" when the repo (or folder) isn't saved.
 
-The `+` opens the projects menu. Clicking a project opens it: its open space is selected, or a new space is built from its saved layout (tabs, splits, weights, programs, mod panes). The branch button opens New worktree. ↑↓ Enter Esc work, and Tab or ctrl-Enter runs the row's branch button.
+The `+` opens the projects menu. Clicking a project opens it: its open space is selected, or a new space is built from its saved layout (tabs, splits, weights, programs, mod panes). The branch button opens New worktree; right-click on a project opens its project menu (Open, Open new space anyway, Open in new worktree, Save layout here, Clear layout, Remove project). ↑↓ Enter Esc work, and Tab or ctrl-Enter runs the row's branch button.
 
 **Agents list.** Click focuses the agent. Right-click opens Copy branch, Copy path and, in a linked worktree, Delete worktree…. The `+` opens New agent.
 
@@ -132,7 +132,6 @@ root row (background canvas)
 - **Herdr doesn't watch symlink targets.** Editing the clone doesn't hot-reload; `touch -h` the link (install.sh does).
 - **Clones go stale.** `my-spaces` and `my-agents` don't get Herdr's later fixes to `spaces` and `agents`; re-clone and re-apply the `// personal:` edits.
 - **Limits:** branch names cut to 64 chars, slugs at most 5 words, naming timeout 20 s, prompt sent to the hook cut to 4000 chars, hook locks pruned after 30 days, tab titles from a prompt at most 28 chars, MRU 50 agents, 50 request states kept, menus show 8 rows, dropdowns 8 (Project 7, Agent 6), switcher 12 rows, preview 60 lines, bases refetched when older than 30 s, host warms caches every 2 s.
-- **Controls with no way in yet:** the project menu (`projects.menu:id`: Open new space anyway, Clear layout, Remove project) has no click that opens it.
 - **Assumes:** git with the configured remote (default `origin`; bases are `HEAD` or `<remote>/<x>`), `claude` on the PATH for naming, `jq` for the hook, the shipped mods listed above.
 
 ## Done when

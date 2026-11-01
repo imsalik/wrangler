@@ -27,7 +27,7 @@ Or use the Spaces **+** menu: **Add project...** picks a folder, **Add current s
 
 ![The Spaces + menu listing three projects](images/plus-menu.png)
 
-Click a project to open it. If a space is already open at that repo it's selected; otherwise a new one opens. `ctrl-shift-j` (or prefix `⇧O`) opens the same list as a picker you can type to filter.
+Click a project to open it. Right-click it for more: open in a new space, clear its saved layout, or **Remove project** (removes it from the list; your files stay). If a space is already open at that repo it's selected; otherwise a new one opens. `ctrl-shift-j` (or prefix `⇧O`) opens the same list as a picker you can type to filter.
 
 **Save a layout.** Arrange a space the way you like (tabs, splits, an editor, a dev server), then pick **Save this space's layout to ...** from the **+** menu, or press prefix `⇧S`. Next time the project opens, it opens like that.
 

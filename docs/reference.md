@@ -16,7 +16,7 @@ Every action is a `projects.*` command, usable in `keys.json` or with `herdr-app
 | `projects.save[:id]` | save the focused space's layout to its project (or to `id`) |
 | `projects.add[:folder]` / `projects.add-folder` | add the focused space (or `folder`) / pick a folder |
 | `projects.open:id` / `projects.open-new:id` | open a project / always in a new space |
-| `projects.menu:id` | a project's menu: Open, Open new space anyway, Open in new worktree, Save layout here, Clear layout, Remove project |
+| `projects.menu:id` | a project's menu (also right-click a project in the `+` menu): Open, Open new space anyway, Open in new worktree, Save layout here, Clear layout, Remove project |
 | `projects.clear:id` / `projects.remove:id` | drop a project's saved layout / remove the project |
 | `projects.new-menu` | the Spaces header `+` menu |
 | `projects.agent-start:<json>` | start an agent with no dialog (below) |

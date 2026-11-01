@@ -27,6 +27,7 @@ const common = {
         .text_color(on ? t.foreground : t.dim)
         .when(on && n === this.at, (el) => el.bg(t.selected))
         .when(on, (el) => el.hover((s) => s.bg(t.hover)).on_click(() => pick(e)))
+        .when(!!e.more, (el) => el.on_mouse_down("right", () => { this.close(); e.more(); }))
         .child(e.project ? badge(e.project, sp, ps) : svg(ICON(e.icon)).size(14).flex_none().text_color(on ? t.muted : t.dim))
         .child(div().flex_1().min_w(0).truncate().child(e.label))
         .when(!!e.hint, (el) => el.child(div().flex_none().max_w(110).truncate().text_size(11).text_color(t.dim).child(e.hint)))
@@ -83,7 +84,7 @@ export const views = {
         { label: "Empty space", icon: "plus", run: () => run("space.new") },
         { sep: true },
         { head: "Projects" },
-        { scroll: projects().map((p) => ({ label: p.name, project: p, hint: summary(p), run: () => send("open", p.id), tree: () => worktreeDialog(p) })), max: 8 },
+        { scroll: projects().map((p) => ({ label: p.name, project: p, hint: summary(p), run: () => send("open", p.id), tree: () => worktreeDialog(p), more: () => send("menu", p.id) })), max: 8 },
         { sep: true },
         { label: m ? `Save this space's layout to ${m.name}` : "Save this space's layout to project", icon: "layers", on: !!m, run: () => send("save", m.id) },
         { label: "Add project…", icon: "folder", run: () => send("add-folder") },
