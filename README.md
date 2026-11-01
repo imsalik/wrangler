@@ -4,6 +4,8 @@ Projects, git worktrees and coding agents for the [Herdr](https://herdr.dev) des
 
 ![wrangler](preview.gif)
 
+New here? **[Getting started](docs/getting-started.md)** walks through each feature with screenshots.
+
 ## Features
 
 - **Projects.** Save a repo or folder as a project. Opening it selects its space, or makes a new one with the project's saved layout (tabs, splits, programs).
@@ -52,6 +54,8 @@ Keep the clone where it is: the mods are symlinks into it, and the branch-name h
 **Prefix on or off.** The prefix is just a binding: any key mapped to `mod.open:prefix` opens it, and the panel's label follows your key. Pick another key (`"ctrl-space": "mod.open:prefix"`) to keep `ctrl-a` for your shell, or don't bind it at all to turn it off. `./install.sh --no-prefix` leaves the prefix mod out entirely; everything else works through the plain keys or commands.
 
 ## Usage
+
+A step-by-step version with screenshots is in [Getting started](docs/getting-started.md).
 
 ### Add a project
 
