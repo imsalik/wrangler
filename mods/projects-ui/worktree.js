@@ -182,4 +182,33 @@ export const views = {
           .child(button("ad-go", n ? "Force delete" : "Delete", t.blocked, "#ffffff", ok && !this.stage, (cx) => this.remove(cx))));
     },
   },
+
+  // Remove a project (props.id) from the list; Enter or a click removes, Esc or Cancel closes.
+  "project-remove": {
+    close: closeSelf,
+    start(cx) { follow(this); },
+    remove() { send("remove", this.p.id); this.close(); },
+    draw(t) {
+      const p = projects().find((x) => x.id === this.p.id);
+      const button = (id, text, bg, fg, fn) => div().id(id).h(30).px(14).flex().items_center().justify_center().rounded(7).text_size(12.8).font_medium()
+        .bg(bg).text_color(fg).border(1).border_color(id === "pr-cancel" ? t.border : bg)
+        .cursor_pointer().hover((s) => s.opacity(0.88)).on_click(() => fn()).child(text);
+      return v_flex().id("projects-remove").track_focus(this.handle).w_full().p(18).gap(12).bg(t.popover).text_size(13)
+        .on_key_down((e, cx) => {
+          if (e.key === "escape") this.close();
+          else if (e.key === "enter" && p) this.remove();
+          else return;
+          cx.stop_propagation();
+        })
+        .child(h_flex().items_center()
+          .child(div().flex_1().min_w(0).truncate().text_size(15).font_semibold().text_color(t.foreground).child(p ? `Remove ${p.name}?` : "Project not found"))
+          .child(div().text_size(11).text_color(t.dim).child("Esc")))
+        .child(div().text_color(t.muted).child(p
+          ? `Takes it off the projects list and forgets its saved layout. ${tilde(p.folder)}, its worktrees and branches stay as they are.`
+          : "It may have been removed already."))
+        .child(h_flex().gap(8).justify_end()
+          .child(button("pr-cancel", "Cancel", t.raised, t.foreground, () => this.close()))
+          .when(!!p, (el) => el.child(button("pr-go", "Remove", t.blocked, "#ffffff", () => this.remove()))));
+    },
+  },
 };

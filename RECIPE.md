@@ -56,7 +56,7 @@ Left to right, a row on the `canvas` background, no title bar (`"titlebar": "non
 - not in git: Rename, Close;
 - plus "Add as project" when the repo (or folder) isn't saved.
 
-The `+` opens the projects menu. Clicking a project opens it: its open space is selected, or a new space is built from its saved layout (tabs, splits, weights, programs, mod panes). The branch button opens New worktree; right-click on a project opens its project menu (Open, Open new space anyway, Open in new worktree, Save layout here, Clear layout, Remove project). ↑↓ Enter Esc work, and Tab or ctrl-Enter runs the row's branch button.
+The `+` opens the projects menu. Clicking a project opens it: its open space is selected, or a new space is built from its saved layout (tabs, splits, weights, programs, mod panes). The branch button opens New worktree; hovering a project shows an x that opens a "Remove <name>?" confirm dialog (Cancel / Remove, Enter removes, Esc closes; files stay); right-click on a project opens its project menu (Open, Open new space anyway, Open in new worktree, Save layout here, Clear layout, Remove project). ↑↓ Enter Esc work, and Tab or ctrl-Enter runs the row's branch button.
 
 **Agents list.** Click focuses the agent. Right-click opens Copy branch, Copy path and, in a linked worktree, Delete worktree…. The `+` opens New agent.
 

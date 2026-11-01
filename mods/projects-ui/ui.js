@@ -246,3 +246,6 @@ export const openFromHost = (spec) => sendJson("overlay", spec);
 export function worktreeDialog(p, mode, branch, src, saved = true) {
   openFromHost({ mod: "projects-ui", kind: "dialog", width: 520, props: { view: "worktree", id: p.id, ...(saved ? {} : { project: p }), ...(src ? { src } : {}), ...(mode ? { mode } : {}), ...(branch ? { branch } : {}) } });
 }
+
+/** Confirms removing a project from the list. */
+export const removeDialog = (p) => openFromHost({ mod: "projects-ui", kind: "dialog", width: 420, props: { view: "project-remove", id: p.id } });

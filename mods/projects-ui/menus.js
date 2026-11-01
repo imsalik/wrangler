@@ -2,7 +2,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { focused, panes, run, spaces } from "herdr";
-import { ICON, badge, openFromHost, closeSelf, follow, ownerOf, projects, rule, savedOf, send, summary, tilde, worktreeDialog } from "./ui.js";
+import { ICON, badge, openFromHost, closeSelf, follow, ownerOf, projects, removeDialog, rule, savedOf, send, summary, tilde, worktreeDialog } from "./ui.js";
 
 const common = {
   close: closeSelf,
@@ -28,9 +28,14 @@ const common = {
         .when(on && n === this.at, (el) => el.bg(t.selected))
         .when(on, (el) => el.hover((s) => s.bg(t.hover)).on_click(() => pick(e)))
         .when(!!e.more, (el) => el.on_mouse_down("right", () => { this.close(); e.more(); }))
+        .when(!!e.drop, (el) => el.on_hover((h, cx) => { if (h) this.hov = i; else if (this.hov === i) this.hov = null; cx.notify(); }))
         .child(e.project ? badge(e.project, sp, ps) : svg(ICON(e.icon)).size(14).flex_none().text_color(on ? t.muted : t.dim))
         .child(div().flex_1().min_w(0).truncate().child(e.label))
         .when(!!e.hint, (el) => el.child(div().flex_none().max_w(110).truncate().text_size(11).text_color(t.dim).child(e.hint)))
+        .when(!!e.drop && this.hov === i, (el) => el.child(div().id(`${id}-${i}-rm`).size(22).flex_none().flex().items_center().justify_center().rounded(5)
+          .text_color(t.dim).hover((s) => s.bg(t.raised).text_color(t.blocked))
+          .on_click((_e, cx) => { cx.stop_propagation(); this.close(); e.drop(); })
+          .child(svg(ICON("x")).size(13))))
         .when(!!e.tree, (el) => el.child(div().id(`${id}-${i}-wt`).size(22).flex_none().flex().items_center().justify_center().rounded(5)
           .text_color(t.dim).hover((s) => s.bg(t.raised).text_color(t.foreground))
           .on_click((_e, cx) => { cx.stop_propagation(); this.close(); e.tree(); })
@@ -84,7 +89,7 @@ export const views = {
         { label: "Empty space", icon: "plus", run: () => run("space.new") },
         { sep: true },
         { head: "Projects" },
-        { scroll: projects().map((p) => ({ label: p.name, project: p, hint: summary(p), run: () => send("open", p.id), tree: () => worktreeDialog(p), more: () => send("menu", p.id) })), max: 8 },
+        { scroll: projects().map((p) => ({ label: p.name, project: p, hint: summary(p), run: () => send("open", p.id), tree: () => worktreeDialog(p), more: () => send("menu", p.id), drop: () => removeDialog(p) })), max: 8 },
         { sep: true },
         { label: m ? `Save this space's layout to ${m.name}` : "Save this space's layout to project", icon: "layers", on: !!m, run: () => send("save", m.id) },
         { label: "Add project…", icon: "folder", run: () => send("add-folder") },
@@ -150,7 +155,7 @@ export const views = {
         { label: "Save current space's layout here", icon: "layers", on: !!focused()?.space, run: () => send("save", p.id) },
         { label: "Clear layout", icon: "minus", on: !!p.layout, run: () => send("clear", p.id) },
         { sep: true },
-        { label: "Remove project", icon: "x", run: () => send("remove", p.id) },
+        { label: "Remove project…", icon: "x", run: () => removeDialog(p) },
       ]);
     },
   },

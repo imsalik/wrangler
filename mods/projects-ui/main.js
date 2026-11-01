@@ -5,7 +5,7 @@ import { View } from "gpui-kit";
 import { v_flex } from "gpui-base";
 import { props, theme } from "herdr";
 
-const FILE = { picker: "menus", new: "menus", menu: "menus", "space-menu": "menus", "agent-menu": "menus", worktree: "worktree", "agent-delete": "worktree", compose: "compose", switch: "switcher" };
+const FILE = { picker: "menus", new: "menus", menu: "menus", "space-menu": "menus", "agent-menu": "menus", worktree: "worktree", "agent-delete": "worktree", "project-remove": "worktree", compose: "compose", switch: "switcher" };
 
 export default class ProjectsUi extends View {
   init(_props, cx) {
