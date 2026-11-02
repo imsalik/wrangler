@@ -11,6 +11,9 @@ Every action is a `projects.*` command, usable in `keys.json` or with `herdr-app
 | `projects.pick` | projects picker |
 | `projects.compose[:id[\|where]]` | New agent dialog; `where` is `local` or `worktree` |
 | `projects.switch` / `projects.switch-last` | agent switcher / flip to the previous agent without the popup |
+| `projects.peek:terminal` / `projects.peek-go` / `projects.peek-close` | peek at a terminal over the window / go to the peeked one / close the peek |
+
+Any command that opens a menu (`space-menu`, `row-menu`, `agent-menu`, `menu`, `new-menu`) takes an `@x,y` suffix (window px, e.g. `projects.agent-menu:t7@120,340`) and opens the menu there; the sidebar sends the click position.
 | `projects.worktree[:id]` | new worktree dialog; no id: the focused space's repo |
 | `projects.wt-create:id\|branch[\|base]` | make and open a worktree, no dialog; base `HEAD` or `<remote>/<branch>` |
 | `projects.save[:id]` | save the focused space's layout to its project (or to `id`) |
@@ -18,7 +21,8 @@ Every action is a `projects.*` command, usable in `keys.json` or with `herdr-app
 | `projects.open:id` / `projects.open-new:id` | open a project / always in a new space |
 | `projects.menu:id` | a project's menu (also right-click a project in the `+` menu): Open, Open new space anyway, Open in new worktree, Save layout here, Clear layout, Remove project |
 | `projects.clear:id` / `projects.remove:id` | drop a project's saved layout / remove the project |
-| `projects.new-menu` | the Spaces header `+` menu |
+| `projects.new-menu` | the new space / project menu (folder-plus in the sidebar search row) |
+| `projects.search[:text]` | focus the sidebar search (prefix `/`), filled with `text` |
 | `projects.agent-start:<json>` | start an agent with no dialog (below) |
 | `projects.branch-name:id\|prompt[\|model[\|timeout]]` | show the branch name the hook would pick for a prompt |
 | `projects.refresh[:folder]` | reread the cached git checkouts in `folder` (all without one); the rename hook runs it |
@@ -114,7 +118,7 @@ The prompt is [`mods/projects/naming-prompt.txt`](../mods/projects/naming-prompt
 
 ## What it runs
 
-`git` (including `git fetch` for a remote base), `claude -p` for branch names (network), `hc` (screen previews, background reads), `herdr-app` (from the hook, to rename spaces) and small shell helpers (`sh`, `readlink`, `mkdir`, `test`, `sleep`).
+`git` (including `git fetch` for a remote base), `claude -p` for branch names (network), `hc` (background reads), `herdr-app` (from the hook, to rename spaces) and small shell helpers (`sh`, `readlink`, `mkdir`, `test`, `sleep`).
 
 ## Layout
 

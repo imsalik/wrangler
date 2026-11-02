@@ -14,7 +14,9 @@ cp layouts/* ~/.config/herdr-app/layouts/
 herdr-app do layout.switch '{"name":"wrangler"}'
 ```
 
-The sidebar now has two lists: **Spaces** on top, **Agents** below. Both have a **+** in their header.
+The sidebar has a search row on top, then two lists: **Spaces** and **Agents**. Typing in **Search** filters both lists; Enter jumps to the first match, Esc clears it (prefix `/` focuses it). The buttons next to it sort the agents, open the new space / project menu (folder with a +) and start a new agent (pen).
+
+![Sidebar search filtering spaces and agents by "kate"](images/sidebar-search.png)
 
 ## 2. Add a project
 
@@ -24,19 +26,19 @@ Open a space in your repo, then right-click it and pick **Add as project**:
 
 ![Right-click a space, Add as project](images/add-as-project.png)
 
-Or use the Spaces **+** menu: **Add project...** picks a folder, **Add current space as project** adds the one you're in. Once added, projects are listed in that menu with a colored badge:
+Or use the new space menu (the folder-with-a-+ button next to Search): **Add project...** picks a folder, **Add current space as project** adds the one you're in. Once added, projects are listed in that menu with a colored badge:
 
 ![The Spaces + menu listing three projects](images/plus-menu.png)
 
 Click a project to open it. Hover a project for an **x** that removes it from the list (after a confirm; your files, worktrees and branches stay). Right-click it for more: open in a new space, clear its saved layout. If a space is already open at that repo it's selected; otherwise a new one opens. `ctrl-shift-j` (or prefix `⇧O`) opens the same list as a picker you can type to filter.
 
-**Save a layout.** Arrange a space the way you like (tabs, splits, an editor, a dev server), then pick **Save this space's layout to ...** from the **+** menu, or press prefix `⇧S`. Next time the project opens, it opens like that.
+**Save a layout.** Arrange a space the way you like (tabs, splits, an editor, a dev server), then pick **Save this space's layout to ...** from that menu, or press prefix `⇧S`. Next time the project opens, it opens like that.
 
 ## 3. Make a worktree
 
 A worktree is a second checkout of the same repo on its own branch, so you (or an agent) can work on it without touching your main checkout.
 
-Press prefix `g`, click the branch icon next to a project in the **+** menu, or right-click a space and pick **New worktree**:
+Press prefix `g`, click the branch icon next to a project in that menu, or right-click a space and pick **New worktree**:
 
 ![New worktree dialog with a branch name and base](images/new-worktree.png)
 
@@ -44,7 +46,7 @@ Type a **Branch** and pick **From**: the current HEAD or any remote branch (fetc
 
 ## 4. Start an agent
 
-Click **+** in the Agents header, or press `ctrl-shift-g` (prefix `⇧A`):
+Click the pen next to Search, or press `ctrl-shift-g` (prefix `⇧A`):
 
 ![New agent dialog: project, where, agent, branch, base](images/new-agent.png)
 
@@ -53,7 +55,11 @@ Click **+** in the Agents header, or press `ctrl-shift-g` (prefix `⇧A`):
 - **Agent:** any coding agent Herdr finds installed (Claude, Codex, OpenCode, ...).
 - **Branch:** leave it empty and wrangler makes a temporary one.
 
-Press `/` to jump to the Project list and type to filter it. Press **Open**, then give the agent its first message in the new tab.
+Press `/` to jump to the Project list and type to filter it. Press **Open**: the dialog turns into a checklist of what it's doing (fetching the base, creating the worktree, opening the space, starting the agent). Close it any time; the work keeps going. If a step fails, the error shows under it and **Back** returns to the form.
+
+![New agent progress: fetched origin/main, creating the worktree](images/progress.png)
+
+Then give the agent its first message in the new tab.
 
 ## 5. Branches name themselves
 
@@ -63,15 +69,15 @@ With an empty Branch, a new worktree starts on a temp name like `wr/5d81d828`. W
 
 Each Agents row shows the project, what the agent is working on, and its branch. This needs the `claude` CLI; turn it off with `"naming": { "enabled": false }` in the [settings](reference.md#settings).
 
-The Agents list (Priority sort, the clock button in its header) keeps the agents waiting on you at the top: **Needs you** first, then **Done**, then **Idle**, each with how long ago it stopped ("3m ago"). **Working** agents sit at the bottom with how long they've been running; it shows three, then an "N more" row. Hover an idle agent for an **x** that closes its pane (and its space, when that was the only pane there).
+The Agents list (Priority sort, from the sort button next to Search) keeps the agents waiting on you at the top: **Needs you** first, then **Done**, then **Idle**, each with how long ago it stopped ("3m ago"). **Working** agents sit at the bottom with how long they've been running; it shows three, then an "N more" row. Hover an idle agent for an **x** that closes its pane (and its space, when that was the only pane there).
 
 ![Agents list: Needs you, Done and Idle on top, Working at the bottom](images/agents-list.png)
 
 ## 6. Switch between agents
 
-Press `ctrl-shift-a` (prefix `a`). Agents that need you come first, then the ones you used most recently. The right side previews the selected agent's screen, live:
+Press `ctrl-shift-a` (prefix `a`). Agents that need you come first, then the ones you used most recently. Enter goes to one; shift-Enter peeks at it over the window, with **Go to** (`ctrl-shift-enter`) and **Close** (`ctrl-shift-q`) on its bar:
 
-![Agent switcher with a live preview](images/switcher.png)
+![Agent switcher](images/switcher.png)
 
 Type to filter, `1`-`9` to jump, Enter to go there. It opens on your previous agent, so the key then Enter flips between your last two.
 
