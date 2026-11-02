@@ -21,8 +21,7 @@ Any command that opens a menu (`space-menu`, `row-menu`, `agent-menu`, `menu`, `
 | `projects.open:id` / `projects.open-new:id` | open a project / always in a new space |
 | `projects.menu:id` | a project's menu (also right-click a project in the `+` menu): Open, Open new space anyway, Open in new worktree, Save layout here, Clear layout, Remove project |
 | `projects.clear:id` / `projects.remove:id` | drop a project's saved layout / remove the project |
-| `projects.new-menu` | the new space / project menu (folder-plus in the sidebar search row) |
-| `projects.search[:text]` | focus the sidebar search (prefix `/`), filled with `text` |
+| `projects.new-menu` | the new space / project menu (the + on the sidebar's Spaces header) |
 | `projects.agent-start:<json>` | start an agent with no dialog (below) |
 | `projects.branch-name:id\|prompt[\|model[\|timeout]]` | show the branch name the hook would pick for a prompt |
 | `projects.refresh[:folder]` | reread the cached git checkouts in `folder` (all without one); the rename hook runs it |

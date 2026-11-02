@@ -14,9 +14,7 @@ cp layouts/* ~/.config/herdr-app/layouts/
 herdr-app do layout.switch '{"name":"wrangler"}'
 ```
 
-The sidebar has a search row on top, then two lists: **Spaces** and **Agents**. Typing in **Search** filters both lists; Enter jumps to the first match, Esc clears it (prefix `/` focuses it). The buttons next to it sort the agents, open the new space / project menu (folder with a +) and start a new agent (pen).
-
-![Sidebar search filtering spaces and agents by "kate"](images/sidebar-search.png)
+The sidebar has two lists: **Spaces** and **Agents**. The Spaces header has a search button (the projects picker, `ctrl-shift-j`) and a **+** for the new space / project menu; the Agents header has a search button (the agent switcher, `ctrl-shift-a`), the sort button and the pen for a new agent. A project with worktrees shows their count on the right (`2 ˅`): click it to fold them away (the one you're in stays). Once you have other machines, spaces group under a foldable row per machine, this computer first.
 
 ## 2. Add a project
 
@@ -26,7 +24,7 @@ Open a space in your repo, then right-click it and pick **Add as project**:
 
 ![Right-click a space, Add as project](images/add-as-project.png)
 
-Or use the new space menu (the folder-with-a-+ button next to Search): **Add project...** picks a folder, **Add current space as project** adds the one you're in. Once added, projects are listed in that menu with a colored badge:
+Or use the new space menu (the **+** on the Spaces header): **Add project...** picks a folder, **Add current space as project** adds the one you're in. Once added, projects are listed in that menu with a colored badge:
 
 ![The Spaces + menu listing three projects](images/plus-menu.png)
 
@@ -46,7 +44,7 @@ Type a **Branch** and pick **From**: the current HEAD or any remote branch (fetc
 
 ## 4. Start an agent
 
-Click the pen next to Search, or press `ctrl-shift-g` (prefix `⇧A`):
+Click the pen on the Agents header, or press `ctrl-shift-g` (prefix `⇧A`):
 
 ![New agent dialog: project, where, agent, branch, base](images/new-agent.png)
 
@@ -69,7 +67,7 @@ With an empty Branch, a new worktree starts on a temp name like `wr/5d81d828`. W
 
 Each Agents row shows the project, what the agent is working on, and its branch. This needs the `claude` CLI; turn it off with `"naming": { "enabled": false }` in the [settings](reference.md#settings).
 
-The Agents list (Priority sort, from the sort button next to Search) keeps the agents waiting on you at the top: **Needs you** first, then **Done**, then **Idle**, each with how long ago it stopped ("3m ago"). **Working** agents sit at the bottom with how long they've been running; it shows three, then an "N more" row. Hover an idle agent for an **x** that closes its pane (and its space, when that was the only pane there).
+The Agents list (Priority sort, from the sort button on the Agents header) keeps the agents waiting on you at the top: **Needs you** first, then **Done**, then **Idle**, each with how long ago it stopped ("3m ago"). **Working** agents sit at the bottom with how long they've been running; it shows three, then an "N more" row. Hover an idle agent for an **x** that closes its pane (and its space, when that was the only pane there).
 
 ![Agents list: Needs you, Done and Idle on top, Working at the bottom](images/agents-list.png)
 

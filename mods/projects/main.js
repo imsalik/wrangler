@@ -13,13 +13,13 @@
 // projects.branch-name:id|prompt[|model[|timeout]] (toasts the name the rename hook would give a prompt),
 // projects.agent-menu:terminal, projects.agent-copy:terminal|branch|path, projects.agent-delete:terminal (the dialog),
 // projects.wt-delete:terminal[|force] (no dialog; refuses uncommitted changes without force),
-// projects.switch (the agent switcher), projects.switch-last (to the previously focused agent, no UI), projects.search[:text] (focuses the sidebar search, filled with text), projects.peek:terminal / peek-go / peek-close,
+// projects.switch (the agent switcher), projects.switch-last (to the previously focused agent, no UI), projects.peek:terminal / peek-go / peek-close,
 // projects.refresh[:folder] (rereads cached checkouts in folder, e.g. after hooks/rename-branch.sh renames a branch).
 // Requests from projects-ui: bases:<json {project, src, req}>, wt-run:<json {project, branch, from, src, req}>,
 // agent-run:<json agent-start's fields + req>, agent-info:terminal|req, wt-delete-run:terminal|force|req.
 
 import { View, div } from "gpui-kit";
-import { agents, closeOverlay, exec, focused, nextCommand, notify, openOverlay, panes, pickFolder, run, setShared, spaces, watchFolder } from "herdr";
+import { agents, closeOverlay, exec, focused, nextCommand, notify, openOverlay, panes, pickFolder, run, spaces, watchFolder } from "herdr";
 import { apply, bases, basesAge, capture, checkedOut, checkout, checkoutAge, knownData, mru, ownerNow, peekBases, peekCheckout, dir, expand, freeId, git, gitr, load, make, owner, place, spaceFor, tilde, track, until, update, used, viaLogin, watchDir, worktree } from "./lib.js";
 import { agentRun, branchName, claudeArgs, isAgent, tempBranch, titleOf } from "./agent.js";
 
@@ -389,7 +389,6 @@ export default class Projects extends View {
     else if (name === "peek" && arg) peek(arg);
     else if (name === "peek-go") peekGo();
     else if (name === "peek-close") { const p = peekOpen(); if (p) closeOverlay(p.overlay); }
-    else if (name === "search") setShared("sidebar.search", { at: Date.now(), q: arg });
     else if (name === "refresh") await refresh(arg ? expand(arg) : null);
     else if (name === "compose") await compose(key, rest[0], rest[1]);
     else if (name === "agent-start" && arg) await agentStart(arg);

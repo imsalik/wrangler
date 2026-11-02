@@ -43,6 +43,18 @@ const FALLBACK = 60000;
 // that draws space avatars): one strong color per hue, light and dark alike.
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 
+// personal: an 18px icon on a tint of its color, beside the letter avatars.
+const tile = (color, icon) => h_flex().size(18).flex_none().rounded(5).items_center().justify_center().bg(color + "2e").text_color(color)
+  .child(svg(icon).size(12));
+const machineHue = (name) => Object.values(MARK)[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 6];
+
+// personal: a small icon button for a section header.
+function headerButton(id, icon, tip, t, action) {
+  return div().id(id).size(22).flex_none().flex().items_center().justify_center().rounded(5).text_color(t.dim)
+    .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip).on_click(action)
+    .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14));
+}
+
 // A space speaks up only when something in it needs you.
 export function glyph(status) {
   return status === "blocked" || status === "done" ? "●" : "·";
@@ -70,6 +82,9 @@ export default class Spaces extends View {
     this.over = null;
     this.machines = [];
     this.folded = new Set(JSON.parse(localStorage.getItem("machines.folded") ?? "[]"));
+    // personal: repos whose worktree rows are folded away; machine whose header the pointer is on.
+    this.repoFolded = new Set(JSON.parse(localStorage.getItem("repos.folded") ?? "[]"));
+    this.hoverMachine = undefined;
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // `git status` walks the whole tree, on another machine a process there:
@@ -211,6 +226,7 @@ export default class Spaces extends View {
 
   // Spaces in order, each worktree space moved under its main checkout's.
   // personal: a worktree whose main checkout has no space goes under a row for its repo (ghost) instead.
+  // personal: a folded repo keeps only its active worktree.
   ordered() {
     const sp = spaces(), ps = panes();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
@@ -219,20 +235,24 @@ export default class Spaces extends View {
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const out = [];
     const placed = new Set(); // repos whose worktrees are listed (under the first of its spaces, else its ghost row)
+    const kidsOf = (repo) => list.filter((x) => x.g?.linked && x.g.repo === repo);
     const kids = (repo) => {
-      const k = list.filter((x) => x.g?.linked && x.g.repo === repo);
-      k.forEach((x, n) => out.push({ ...x, tree: n === k.length - 1 ? "└─" : "├─" }));
+      const folded = this.repoFolded.has(repo);
+      const k = kidsOf(repo).filter((x) => !folded || x.w.active);
+      k.forEach((x, n) => out.push({ ...x, tree: n === k.length - 1 ? "last" : "mid", first: n === 0 }));
     };
+    const fold = (repo) => ({ repo, count: kidsOf(repo).length, open: !this.repoFolded.has(repo) });
     for (const r of list) {
       if (r.g?.linked) {
         if (mains.has(r.g.repo) || placed.has(r.g.repo)) continue;
         placed.add(r.g.repo);
-        out.push({ ghost: true, g: r.g, w: { machine: r.w.machine ?? null } });
+        out.push({ ghost: true, g: r.g, w: { machine: r.w.machine ?? null }, fold: fold(r.g.repo) });
         kids(r.g.repo);
         continue;
       }
-      out.push({ ...r, tree: null });
-      if (!r.g || placed.has(r.g.repo)) continue;
+      const first = r.g && !placed.has(r.g.repo);
+      out.push({ ...r, tree: null, fold: first && kidsOf(r.g.repo).length ? fold(r.g.repo) : null });
+      if (!first) continue;
       placed.add(r.g.repo);
       kids(r.g.repo);
     }
@@ -241,7 +261,7 @@ export default class Spaces extends View {
 
   // personal: a repo with worktree spaces but none of its own: its project's name (else the repo's), outlined;
   // click opens the project (else a space there), right-click its menu.
-  ghost({ g }, t) {
+  ghost({ g, fold }, t) {
     const [on, git] = JSON.parse(g.repo), main = git.replace(/\/\.git\/?$/, "");
     const p = projectAt(on, main, true);
     const name = p?.name ?? g.name;
@@ -249,20 +269,29 @@ export default class Spaces extends View {
       .on_click(() => (p ? run(`projects.open:${p.id}`) : run("space.new", { folder: main, ...(on ? { machine: on } : {}) })))
       .on_mouse_down("right", (e) => { if (p) run(`projects.menu:${p.id}@${Math.round(e.position.x)},${Math.round(e.position.y)}`); })
       .child(h_flex().size(18).flex_none().rounded(5).border(1).border_color(t.dim).items_center().justify_center().text_size(10.5).font_bold().text_color(t.dim).child([...name][0]?.toUpperCase() ?? "?"))
-      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(name));
+      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(name))
+      .when(Boolean(fold), (el) => el.child(this.foldChip(fold, t)));
+  }
+
+  // personal: "2 ˅" at a repo row's end: its worktree count, click folds them.
+  foldChip({ repo, count, open }, t) {
+    return h_flex().id(`fold-${repo}`).flex_none().h(20).pl(6).pr(4).gap(4).items_center().rounded(5)
+      .text_size(11).text_color(t.dim).hover((s) => s.bg(t.hover).text_color(t.foreground))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        open ? this.repoFolded.add(repo) : this.repoFolded.delete(repo);
+        localStorage.setItem("repos.folded", JSON.stringify([...this.repoFolded]));
+        cx.notify();
+      })
+      .tooltip(open ? "Hide worktrees" : "Show worktrees")
+      .child(String(count))
+      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(11));
   }
 
   // The rows, under a header per machine once one isn't this computer.
   grouped(t, collapsed) {
-    // personal: the sidebar's search (shared "sidebar.query") keeps rows whose space, project, repo or branch fit.
-    const query = String(shared("sidebar.query") ?? "").trim().toLowerCase();
-    const hay = (r) => {
-      const [on, git] = r.g ? JSON.parse(r.g.repo) : [r.w.machine ?? null, null];
-      const p = git && projectAt(on, git.replace(/\/\.git\/?$/, ""), true);
-      return [r.w.name, p?.name, r.g?.name, r.g?.branch].join(" ").toLowerCase();
-    };
-    const rows = this.ordered().filter((r) => !(collapsed && r.ghost))
-      .filter((r) => !query || query.split(/\s+/).every((q) => hay(r).includes(q)));
+    const rows = this.ordered().filter((r) => !(collapsed && r.ghost));
     const draw = (r) => (r.ghost ? this.ghost(r, t) : collapsed ? this.compact(r, t) : this.row(r, t));
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name)])].sort();
     const loading = m => {
@@ -271,33 +300,40 @@ export default class Spaces extends View {
         || spaces().some(s => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
     const loadingRow = m => div().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(8).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
-    if (query && !rows.length) return [div().px(8).h(28).flex().items_center().text_size(12).text_color(t.dim).child("No spaces match.")];
-    if (!remote.length || query) return loading(null) && !rows.length ? [loadingRow(null)] : rows.map(draw);
-    const machineNames = [null, ...remote];
-    return machineNames.flatMap((m) => {
+    if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.map(draw);
+    // personal: with other machines, a foldable row per machine (this computer first), its spaces indented under it.
+    return [null, ...remote].flatMap((m, n) => {
       const mine = rows.filter((r) => (r.w.machine ?? null) === m);
       const machine = this.machines.find(k => k.name === m);
       const connected = !m || machine?.state === "connected";
       const folded = this.folded.has(m);
-      const head = h_flex().id(`machine-${m ?? "local"}`).h(26).flex_none().px(collapsed ? 2 : 8).gap(7).items_center().text_size(11).text_color(t.dim)
+      const hovered = this.hoverMachine === m;
+      const key = m ?? "local";
+      const head = h_flex().id(`machine-${key}`).h(28).flex_none().when(n > 0, (el) => el.mt(10)).px(collapsed ? 2 : 8).gap(9).items_center().rounded(8).text_size(12.5).text_color(t.muted)
         .cursor_pointer().hover(s => s.bg(t.hover))
+        .on_hover((on, cx) => { this.hoverMachine = on ? m : this.hoverMachine === m ? undefined : this.hoverMachine; cx.notify(); })
         .on_click((_e, cx) => {
           folded ? this.folded.delete(m) : this.folded.add(m);
           localStorage.setItem("machines.folded", JSON.stringify([...this.folded]));
           cx.notify();
         })
-        .child(svg(`mods/workspace-chrome/${m ? "server" : "monitor"}.svg`).size(13).flex_none())
-        .when(!collapsed, el => el.child(div().flex_1().truncate().child(m ?? "This computer"))
-          .when(!connected, el => el.child(div().flex_none().child((machine?.state ?? "asleep").replace(/_/g, " "))))
-          .when(connected, el => el.child(div().id(`machine-add-${m ?? "local"}`).flex_none().px(4).rounded(4).hover(s => s.bg(t.hover).text_color(t.foreground))
-            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", m ? { machine: m } : {}); }).child("+")))
-          .child(div().size(6).rounded(3).flex_none().bg(connected ? t.ansi2 : t.dim))
-          .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none()));
-      const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(28).flex_none().px(8).gap(7).items_center().rounded(7)
+        .child(m ? tile(machineHue(m), "mods/workspace-chrome/server.svg") : tile(t.accent, "mods/workspace-chrome/monitor.svg"))
+        .when(!collapsed, el => el.child(h_flex().flex_1().min_w(0).gap(7).items_center()
+            .child(div().min_w(0).truncate().child(m ?? "This computer"))
+            .when(Boolean(m), el => el.child(div().size(6).rounded(3).flex_none().bg(connected ? t.ansi2 : t.dim))))
+          .when(!connected, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child((machine?.state ?? "asleep").replace(/_/g, " "))))
+          .when(connected && hovered, el => el.child(div().id(`machine-add-${key}`).size(20).flex_none().flex().items_center().justify_center().rounded(5)
+            .text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground)).tooltip("New space there")
+            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", m ? { machine: m } : {}); }).child(svg("mods/workspace-chrome/plus.svg").size(12))))
+          .child(h_flex().flex_none().gap(4).items_center().text_size(11).text_color(t.dim)
+            .when(folded && mine.length > 0, el => el.child(String(mine.length)))
+            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11))));
+      const empty = h_flex().id(`machine-new-${key}`).h(28).flex_none().pl(35).pr(8).gap(7).items_center().rounded(7)
         .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
         .on_click(() => run("space.new", m ? { machine: m } : {}))
         .child(svg("mods/workspace-chrome/plus.svg").size(12)).when(!collapsed, el => el.child("New space there"));
-      return [head, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty])];
+      const body = mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty];
+      return [head, ...(folded ? [] : [v_flex().pl(collapsed ? 0 : 10).children(body)])];
     });
   }
 
@@ -309,7 +345,8 @@ export default class Spaces extends View {
     const same = (a) => a.toLowerCase() === name.toLowerCase();
     const branch = same(raw) || raw === "master" || raw === "main" ? "" : raw;
     const repo = tree || same(g.name) ? "" : g.name;
-    const where = [repo, branch].filter(Boolean).join(" \u00b7 ");
+    // personal: a worktree row shows only ahead/behind; its branch is in the row's tooltip.
+    const where = tree ? "" : [repo, branch].filter(Boolean).join(" \u00b7 ");
     return h_flex()
       .flex_1()
       .min_w(0)
@@ -323,8 +360,10 @@ export default class Spaces extends View {
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
   }
 
-  row({ w, i, g, tree }, t) {
+  row({ w, i, g, tree, first, fold }, t) {
     const on = w.active;
+    const isHome = !tree && w.name === "~";
+    const branch = g?.branch ?? "detached";
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
@@ -369,17 +408,27 @@ export default class Spaces extends View {
         cx.notify();
       })
       .on_mouse_down("right", (e) => this.menu(w, e))
+      .when(Boolean(tree) && branch !== w.name, (el) => el.tooltip(branch))
+      // personal: worktrees branch off their repo's avatar on a curve, names aligned with the repo's.
+      .when(Boolean(tree), (el) => {
+        const lift = first ? 5 : 0, mid = rowHeight({ tree }) / 2;
+        return el
+          .when(tree !== "last", (l) => l.child(div().absolute().left(16).top(-lift).bottom(0).w(1).bg(t.dim + "55")))
+          .child(div().absolute().left(16).top(-lift).h(mid + lift).w(11).border_l(1).border_b(1).rounded_bl(8).border_color(t.dim + "55"));
+      })
       .child(
         h_flex()
           .gap(9)
           .items_center()
-          .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim)))
-          .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).items_center().justify_center().text_size(10.5).font_bold()
+          .when(Boolean(tree), el => el.pl(27))
+          .when(isHome, el => el.child(tile(t.muted, "mods/my-spaces/house.svg")))
+          .when(!tree && !isHome, el => el.child(h_flex().size(18).flex_none().rounded(5).items_center().justify_center().text_size(10.5).font_bold()
             .when(Boolean(isProject), (a) => a.bg(fill).text_color("#ffffff"))
             .when(!isProject, (a) => a.border(1).border_color(t.dim).text_color(t.dim))
             .child([...w.name][0]?.toUpperCase() ?? "?")))
-          .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
-          .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1()),
+          .child(div().flex_shrink(0).max_w(tree ? 190 : 150).truncate().text_color(tree && !on ? t.muted : t.foreground).child(isHome ? "Home" : w.name))
+          .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
+          .when(Boolean(fold), (el) => el.child(this.foldChip(fold, t))),
       );
   }
 
@@ -413,9 +462,13 @@ export default class Spaces extends View {
     }
     if (changed) setShared("space.colors", kept);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
-      // personal: new space / project lives in the sidebar's search row.
-      .when(!collapsed, el => el.child(h_flex().h(30).pl(16).pt(6).items_center().text_size(11.5).font_medium().text_color(t.dim).child("Spaces")))
-      .child(v_flex().flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always")
+      // personal: the header finds a project (picker) and opens the new space / project menu where it was clicked.
+      .when(!collapsed, el => el.child(h_flex().h(28).pl(16).pr(12).pt(6).gap(2).items_center().text_size(11.5).font_medium().text_color(t.dim)
+        .child(div().flex_1().child("Spaces"))
+        .child(headerButton("sp-find", "search", "Find project (⌃⇧J)", t, () => run("projects.pick")))
+        .child(headerButton("sp-new", "plus", "New space or project", t,
+          (e) => run(e?.position ? `projects.new-menu@${Math.round(e.position.x)},${Math.round(e.position.y)}` : "projects.new-menu")))))
+      .child(v_flex().flex_1().min_h(0).px(8).pb(8).overflow_y_scrollbar().mode("always")
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         .children(this.grouped(t, collapsed)));
   }

@@ -3,7 +3,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, closeOverlay, props, appHome, exec, home, readTextFile, watchFolder, window, layout } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, closeOverlay, openOverlay, props, appHome, exec, home, readTextFile, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -93,6 +93,13 @@ const ago = (ms) => (ms < 60000 ? "just now" : `${duration(ms)} ago`);
 function icon(p, size, color) {
   if (!p?.icon) return null;
   return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
+}
+
+// personal: a small icon button for the header.
+function headerButton(id, src, tip, t, action) {
+  return div().id(id).size(22).flex_none().flex().items_center().justify_center().rounded(5).text_color(t.dim)
+    .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip).on_click(action)
+    .child(svg(src).size(14));
 }
 
 export default class Agents extends View {
@@ -390,28 +397,17 @@ export default class Agents extends View {
     const rankOf = (a) => urgency.get(a.address);
     if (byPriority) list = [...list].sort((x, y) => rankOf(y) - rankOf(x) || this.since(y) - this.since(x) || y.seq - x.seq);
     this.prunePins(all);
-    let pinned = this.pins.map((p) => list.find((a) => a.address === p)).filter(Boolean);
-    let rest = list.filter((a) => !this.pins.includes(a.address));
+    const pinned = this.pins.map((p) => list.find((a) => a.address === p)).filter(Boolean);
+    const rest = list.filter((a) => !this.pins.includes(a.address));
     list = [...pinned, ...rest];
     setAgentOrder(list.map((a) => a.address));
 
-    // personal: the sidebar's search (shared "sidebar.query") keeps the agents whose project, space, tab, title or branch fit.
     const ids = this.projects.map((x) => x.id);
     const dot = (a, w) => {
       if (w) return hue(w.p, ids);
       const c = shared("space.colors")?.[a.space];
       return c ? (c.startsWith("#") ? c : (MARK[c] ?? theme()[c])) : t.dim;
     };
-    const query = String(shared("sidebar.query") ?? "").trim().toLowerCase();
-    if (query) {
-      const tabNames = new Map(spaces().flatMap((s) => s.tabs).map((tb) => [tb.id, tb.name]));
-      const hay = (a) => { const w = this.where(a); return [w?.p.name, w?.branch, a.space_name, tabNames.get(a.tab), a.title, a.program?.name].join(" ").toLowerCase(); };
-      const keep = (a) => query.split(/\s+/).every((q) => hay(a).includes(q));
-      list = list.filter(keep);
-      pinned = pinned.filter(keep);
-      rest = rest.filter(keep);
-    }
-
     const withKids = (a, i) => {
       const subs = collapsed ? [] : this.tree(all, a.address);
       const r = row(a, i, subs);
@@ -593,8 +589,8 @@ export default class Agents extends View {
       return h_flex()
         .id(g.id)
         .px(8)
-        .pt(8)
-        .h(30)
+        .pt(4)
+        .h(26)
         .flex_none()
         .gap(6)
         .items_center()
@@ -613,7 +609,7 @@ export default class Agents extends View {
         .child(div().flex_1())
         .when(!open && !byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top }, true)));
     };
-    const capped = (g) => !query && byPriority && BOTTOM.has(g.id) && g.members.length > LIMIT;
+    const capped = (g) => byPriority && BOTTOM.has(g.id) && g.members.length > LIMIT;
     const moreRow = (g) => {
       const open = this.more.has(g.id);
       return h_flex()
@@ -651,11 +647,18 @@ export default class Agents extends View {
       .border_t(1)
       .border_color(t.border)
       .text_size(13)
-      // personal: new agent and sort live in the sidebar's search row.
-      .when(!collapsed, (el) => el.child(h_flex().px(16).h(34).pt(12).flex_none().items_center()
-        .text_size(11.5).font_medium().text_color(t.dim).child("Agents")))
+      // personal: switcher, sort and new agent on the header; in the rail, new agent on top.
+      .when(!collapsed, (el) => el.child(h_flex().pl(16).pr(12).h(28).pt(6).flex_none().items_center().gap(2)
+        .text_size(11.5).font_medium().text_color(t.dim)
+        .child(div().flex_1().child("Agents"))
+        .child(headerButton("ag-find", "mods/workspace-chrome/search.svg", "Switch agent (⌃⇧A)", t, () => run("projects.switch")))
+        .child(headerButton("ag-sort", "mods/my-chrome/filter.svg", "Sort agents", t,
+          () => openOverlay({ mod: "my-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } })))
+        .child(headerButton("ag-new", "mods/workspace-chrome/square-pen.svg", "New agent", t, () => run("projects.compose")))))
+      .when(collapsed, (el) => el.child(h_flex().h(36).flex_none().items_center().justify_center()
+        .child(headerButton("ag-new", "mods/workspace-chrome/square-pen.svg", "New agent", t, () => run("projects.compose")))))
       .when(list.length === 0 && !collapsed, (el) =>
-        el.child(div().px(16).py(6).text_size(12).text_color(t.dim).child(query ? "No agents match." : "No agents yet. Start one with the pen above.")),
+        el.child(div().px(16).py(6).text_size(12).text_color(t.dim).child("No agents yet. Start one with the pen above.")),
       )
       .child(v_flex().id("ag-list").flex_1().min_h(rows.length && bottom.length ? 96 : 0).px(collapsed ? 0 : 8).overflow_y_scrollbar().mode("always").children(rows))
       .when(bottom.length > 0, (el) => el.child(v_flex().id("ag-bottom").flex_shrink_1().min_h(0).px(8).pb(4).overflow_y_scroll().children(bottom)))

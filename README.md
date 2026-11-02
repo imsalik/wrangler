@@ -14,7 +14,7 @@ Made for anyone coming from the herdr TUI or tmux who wants the same keyboard-fi
 - **Worktrees** from HEAD or any remote branch, nested under their project in the Spaces list.
 - **New agent** dialog: any installed agent (Claude, Codex, OpenCode, ...), in the project folder or a fresh worktree.
 - **Auto-named branches**: Claude's first prompt turns a temp `wr/…` branch into `feat/…`, `fix/…`.
-- **Sidebar search** that filters spaces and agents as you type; Enter jumps to the first match.
+- **A tidy sidebar**: worktrees fold under their project, other machines get one row each, and each list's header has a search button for its picker.
 - **Agents list** sorted by who's waiting: Needs you, Done and Idle on top with how long ago they stopped, Working pinned at the bottom with how long it's been running. Hover an idle agent to close it.
 - **Agent switcher** with the agents that need you first, and a peek at any of them without leaving where you are.
 - **Prefix keys** (optional), which-key style.

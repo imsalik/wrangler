@@ -2,7 +2,6 @@
   "title": "Projects",
   "items": [
     { "show": "a", "label": "Switch agent", "run": "projects.switch" },
-    { "show": "/", "label": "Search sidebar", "run": "projects.search" },
     { "show": "⇧O", "label": "Projects", "bind": { "shift-o": "projects.pick" } },
     { "show": "⇧A", "label": "New agent", "bind": { "shift-a": "projects.compose" } },
     { "show": "g", "label": "New worktree", "run": "projects.worktree" },

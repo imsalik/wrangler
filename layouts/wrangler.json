@@ -18,7 +18,7 @@
             "mod": "my-chrome"
           },
           "size": {
-            "px": 46
+            "px": 42
           },
           "window_drag": true,
           "background": {
@@ -27,19 +27,6 @@
               "#89b4fa00"
             ],
             "angle": 90
-          }
-        },
-        {
-          "id": "search",
-          "type": "block",
-          "content": {
-            "mod": "my-chrome",
-            "props": {
-              "search": true
-            }
-          },
-          "size": {
-            "px": 44
           }
         },
         {
