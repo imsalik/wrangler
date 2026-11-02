@@ -15,12 +15,32 @@
           "id": "brand",
           "type": "block",
           "content": {
-            "mod": "workspace-chrome"
+            "mod": "my-chrome"
           },
           "size": {
             "px": 46
           },
-          "window_drag": true
+          "window_drag": true,
+          "background": {
+            "gradient": [
+              "#89b4fa38",
+              "#89b4fa00"
+            ],
+            "angle": 90
+          }
+        },
+        {
+          "id": "search",
+          "type": "block",
+          "content": {
+            "mod": "my-chrome",
+            "props": {
+              "search": true
+            }
+          },
+          "size": {
+            "px": 44
+          }
         },
         {
           "id": "sidebar-lists",
@@ -54,7 +74,7 @@
           "id": "sidebar-footer",
           "type": "block",
           "content": {
-            "mod": "workspace-chrome",
+            "mod": "my-chrome",
             "props": {
               "footer": true
             }

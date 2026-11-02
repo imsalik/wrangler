@@ -210,7 +210,14 @@ export class Dropdown {
 }
 
 export const spinner = (t, text) => h_flex().gap(6).items_center().child(svg(ICON("spinner")).size(12).spin(900)).child(text);
-export const rule = (t) => div().mx(7).my(4).h(1).bg(t.border);
+
+/** A key as a small chip. */
+export const keycap = (t, k) => div().h(18).min_w(18).px(5).flex().items_center().justify_center().rounded(4).border(1).border_color(t.border)
+  .bg(t.background).text_size(10.5).text_color(t.muted).child(k);
+
+/** Key hints for a dialog footer: [[key, label], ...]. */
+export const hints = (t, list) => h_flex().flex_1().min_w(0).gap(10).items_center().text_size(11).text_color(t.dim)
+  .children(list.map(([k, l]) => h_flex().flex_none().gap(5).items_center().child(keycap(t, k)).child(l)));
 
 /** Runs projects.<cmd>[:arg] on the host. */
 export const send = (cmd, arg) => run(`projects.${cmd}${arg == null || arg === "" ? "" : `:${arg}`}`);

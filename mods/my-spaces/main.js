@@ -203,10 +203,10 @@ export default class Spaces extends View {
     });
   }
 
-  menu(w) {
-    // personal: projects menu for every row
-    const g = this.git[where(w, panes())];
-    run(g ? `projects.space-menu:${w.id}${g.linked ? "|linked" : "|main"}` : `projects.row-menu:${w.id}`);
+  menu(w, e) {
+    // personal: projects menu for every row, opened where the click was
+    const g = this.git[where(w, panes())], at = `@${Math.round(e.position.x)},${Math.round(e.position.y)}`;
+    run(g ? `projects.space-menu:${w.id}${g.linked ? "|linked" : "|main"}${at}` : `projects.row-menu:${w.id}${at}`);
   }
 
   // Spaces in order, each worktree space moved under its main checkout's.
@@ -247,14 +247,22 @@ export default class Spaces extends View {
     const name = p?.name ?? g.name;
     return h_flex().id(`repo-${on ?? ""}-${main}`).px(8).h(30).flex_none().gap(9).items_center().rounded(8).cursor_pointer().hover((s) => s.bg(t.hover))
       .on_click(() => (p ? run(`projects.open:${p.id}`) : run("space.new", { folder: main, ...(on ? { machine: on } : {}) })))
-      .on_mouse_down("right", () => { if (p) run(`projects.menu:${p.id}`); })
+      .on_mouse_down("right", (e) => { if (p) run(`projects.menu:${p.id}@${Math.round(e.position.x)},${Math.round(e.position.y)}`); })
       .child(h_flex().size(18).flex_none().rounded(5).border(1).border_color(t.dim).items_center().justify_center().text_size(10.5).font_bold().text_color(t.dim).child([...name][0]?.toUpperCase() ?? "?"))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(name));
   }
 
   // The rows, under a header per machine once one isn't this computer.
   grouped(t, collapsed) {
-    const rows = this.ordered().filter((r) => !(collapsed && r.ghost));
+    // personal: the sidebar's search (shared "sidebar.query") keeps rows whose space, project, repo or branch fit.
+    const query = String(shared("sidebar.query") ?? "").trim().toLowerCase();
+    const hay = (r) => {
+      const [on, git] = r.g ? JSON.parse(r.g.repo) : [r.w.machine ?? null, null];
+      const p = git && projectAt(on, git.replace(/\/\.git\/?$/, ""), true);
+      return [r.w.name, p?.name, r.g?.name, r.g?.branch].join(" ").toLowerCase();
+    };
+    const rows = this.ordered().filter((r) => !(collapsed && r.ghost))
+      .filter((r) => !query || query.split(/\s+/).every((q) => hay(r).includes(q)));
     const draw = (r) => (r.ghost ? this.ghost(r, t) : collapsed ? this.compact(r, t) : this.row(r, t));
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name)])].sort();
     const loading = m => {
@@ -263,7 +271,8 @@ export default class Spaces extends View {
         || spaces().some(s => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
     const loadingRow = m => div().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(8).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
-    if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.map(draw);
+    if (query && !rows.length) return [div().px(8).h(28).flex().items_center().text_size(12).text_color(t.dim).child("No spaces match.")];
+    if (!remote.length || query) return loading(null) && !rows.length ? [loadingRow(null)] : rows.map(draw);
     const machineNames = [null, ...remote];
     return machineNames.flatMap((m) => {
       const mine = rows.filter((r) => (r.w.machine ?? null) === m);
@@ -359,7 +368,7 @@ export default class Spaces extends View {
         else if (from === i) run("space.select", { id: w.id });
         cx.notify();
       })
-      .on_mouse_down("right", () => this.menu(w))
+      .on_mouse_down("right", (e) => this.menu(w, e))
       .child(
         h_flex()
           .gap(9)
@@ -404,11 +413,8 @@ export default class Spaces extends View {
     }
     if (changed) setShared("space.colors", kept);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
-      .child(h_flex().h(31).pl(16).pr(10).items_center().justify_between().text_size(11.5).text_color(t.dim)
-        .when(!collapsed, el => el.child("Spaces"))
-        .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
-          // personal: projects menu
-          .on_click(() => run("projects.new-menu")).child(svg("mods/workspace-chrome/plus.svg").size(14))))
+      // personal: new space / project lives in the sidebar's search row.
+      .when(!collapsed, el => el.child(h_flex().h(30).pl(16).pt(6).items_center().text_size(11.5).font_medium().text_color(t.dim).child("Spaces")))
       .child(v_flex().flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always")
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         .children(this.grouped(t, collapsed)));

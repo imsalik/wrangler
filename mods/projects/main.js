@@ -13,13 +13,13 @@
 // projects.branch-name:id|prompt[|model[|timeout]] (toasts the name the rename hook would give a prompt),
 // projects.agent-menu:terminal, projects.agent-copy:terminal|branch|path, projects.agent-delete:terminal (the dialog),
 // projects.wt-delete:terminal[|force] (no dialog; refuses uncommitted changes without force),
-// projects.switch (the agent switcher), projects.switch-last (to the previously focused agent, no UI),
+// projects.switch (the agent switcher), projects.switch-last (to the previously focused agent, no UI), projects.search[:text] (focuses the sidebar search, filled with text), projects.peek:terminal / peek-go / peek-close,
 // projects.refresh[:folder] (rereads cached checkouts in folder, e.g. after hooks/rename-branch.sh renames a branch).
 // Requests from projects-ui: bases:<json {project, src, req}>, wt-run:<json {project, branch, from, src, req}>,
 // agent-run:<json agent-start's fields + req>, agent-info:terminal|req, wt-delete-run:terminal|force|req.
 
 import { View, div } from "gpui-kit";
-import { agents, exec, focused, nextCommand, notify, openOverlay, panes, pickFolder, run, spaces, watchFolder } from "herdr";
+import { agents, closeOverlay, exec, focused, nextCommand, notify, openOverlay, panes, pickFolder, run, setShared, spaces, watchFolder } from "herdr";
 import { apply, bases, basesAge, capture, checkedOut, checkout, checkoutAge, knownData, mru, ownerNow, peekBases, peekCheckout, dir, expand, freeId, git, gitr, load, make, owner, place, spaceFor, tilde, track, until, update, used, viaLogin, watchDir, worktree } from "./lib.js";
 import { agentRun, branchName, claudeArgs, isAgent, tempBranch, titleOf } from "./agent.js";
 
@@ -219,9 +219,35 @@ async function nameTest(p, prompt, model, timeout) {
   }
 }
 
+/** Where the click that asked for a popup was (a command's "@x,y" suffix), taken once by the popup it opens:
+ *  the pointer Herdr knows by the time an async command opens one can be stale. */
+let clickAt = null;
+const atClick = () => { const a = clickAt; clickAt = null; return a ? { at: a } : {}; };
+
+/** The open peek ({ terminal, overlay }), while its bar is alive (it beats every 100 ms). */
+const peekOpen = () => { const p = globalThis.__wranglerPeek; return p && Date.now() - p.at < 600 ? p : null; };
+
+/** Peeks at a terminal over the window: projects-ui's bar on top (who, state, go to, close), the terminal under it. */
+function peek(terminal) {
+  const p = peekOpen();
+  if (p) closeOverlay(p.overlay);
+  openOverlay({ kind: "dialog", width: 0.86, height: 0.84, layout: { id: "peek", type: "column", children: [
+    { id: "peek-bar", type: "block", content: { mod: "projects-ui", props: { view: "peek", terminal } }, size: { px: 46 } },
+    { id: "peek-term", type: "block", content: { terminal } },
+  ] } });
+}
+
+/** From the peek to the terminal: its pane, or (a sub-agent without one) a tab of the shown space. */
+function peekGo() {
+  const p = peekOpen();
+  if (!p) return;
+  closeOverlay(p.overlay);
+  run(panes().some((x) => x.terminal === p.terminal) ? "pane.focus" : "terminal.keep", { terminal: p.terminal });
+}
+
 /** A space's right-click popup; kind "main" (the repo's own checkout), "linked" (another worktree) or "plain" (no git). */
 function spaceMenu(id, kind = "linked") {
-  openOverlay({ mod: "projects-ui", kind: "popup", width: 340, height: 260, props: { view: "space-menu", space: id, ...(kind === "linked" ? {} : { [kind]: true }) } });
+  openOverlay({ mod: "projects-ui", kind: "popup", width: 340, height: 260, ...atClick(), props: { view: "space-menu", space: id, ...(kind === "linked" ? {} : { [kind]: true }) } });
   refreshSpace(id);
 }
 
@@ -269,8 +295,8 @@ async function agentMenu(addr) {
   const a = await agentAt(addr, true);
   agentAt(addr).catch(() => null);
   if (!a) return toast("No folder for this agent", addr, "warning");
-  const height = 32 + 31 * (a.branch ? 2 : 1) + (a.linked ? 40 : 0);
-  openOverlay({ mod: "projects-ui", kind: "popup", width: 280, height, props: { view: "agent-menu", agent: a } });
+  const height = 44 + 33 * (a.branch ? 2 : 1) + (a.linked ? 43 : 0);
+  openOverlay({ mod: "projects-ui", kind: "popup", width: 280, height, ...atClick(), props: { view: "agent-menu", agent: a } });
 }
 
 async function agentCopy(addr, what, cx) {
@@ -349,6 +375,8 @@ export default class Projects extends View {
 
   /** Runs one command (projects.<name>[:args]). */
   async command(c, cx) {
+    const pt = /@(-?\d+),(-?\d+)$/.exec(c);
+    if (pt) { c = c.slice(0, pt.index); clickAt = { x: +pt[1], y: +pt[2] }; }
     const i = c.indexOf(":");
     const [name, arg] = i < 0 ? [c, ""] : [c.slice(0, i), c.slice(i + 1)];
     const [key, ...rest] = arg.split("|");
@@ -356,13 +384,17 @@ export default class Projects extends View {
     const space = focused()?.space;
     const ui = (props, size) => openOverlay({ mod: "projects-ui", ...size, props });
     if (name === "pick") run("mod.open", { name: "projects-ui" });
-    else if (name === "switch") ui({ view: "switch" }, { kind: "popup", at: "top", offset: 40, width: 820, height: 500 });
+    else if (name === "switch") ui({ view: "switch" }, { kind: "popup", at: "top", offset: 40, width: 680, height: 470 });
     else if (name === "switch-last") switchLast();
+    else if (name === "peek" && arg) peek(arg);
+    else if (name === "peek-go") peekGo();
+    else if (name === "peek-close") { const p = peekOpen(); if (p) closeOverlay(p.overlay); }
+    else if (name === "search") setShared("sidebar.search", { at: Date.now(), q: arg });
     else if (name === "refresh") await refresh(arg ? expand(arg) : null);
     else if (name === "compose") await compose(key, rest[0], rest[1]);
     else if (name === "agent-start" && arg) await agentStart(arg);
     else if (name === "branch-name" && p) await nameTest(p, rest[0], rest[1], rest[2]);
-    else if (name === "new-menu") { ui({ view: "new" }, { kind: "popup", width: 290, height: 560 }); if (space) refreshSpace(space); }
+    else if (name === "new-menu") { ui({ view: "new" }, { kind: "popup", width: 290, height: 560, ...atClick() }); if (space) refreshSpace(space); }
     else if (name === "space-menu" && key) await (rest[0] ? spaceMenu(key, rest[0]) : rowMenu(key));
     else if (name === "add-space" && key) await addSpace(key);
     else if (name === "row-menu" && arg) await rowMenu(arg);
@@ -374,7 +406,7 @@ export default class Projects extends View {
     else if (name === "wt-from" && key) await wtFrom(key, rest[0], rest[1]);
     else if (name === "save") await (arg ? (p ? saveTo(p.id, space) : null) : saveFocused());
     else if (name === "add") await (arg ? add(expand(arg), null) : addCurrent());
-    else if (name === "menu" && p) ui({ view: "menu", id: p.id }, { kind: "popup", width: 260, height: 290 });
+    else if (name === "menu" && p) ui({ view: "menu", id: p.id }, { kind: "popup", width: 260, height: 290, ...atClick() });
     else if (name === "open" && p) await open(p);
     else if (name === "open-new" && p) await open(p, true);
     else if (name === "clear" && p) await edit(p.id, (_d, q) => { if (q) q.layout = null; });

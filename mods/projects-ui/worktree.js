@@ -1,7 +1,8 @@
 // The new-worktree dialog and the agent's delete-worktree dialog.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { Dropdown, ICON, ago, basesOf, closeSelf, follow, headed, newReq, projects, reqState, send, sendJson, spinner, tilde, worktreePath } from "./ui.js";
+import { Dropdown, ICON, ago, basesOf, closeSelf, follow, headed, hints, newReq, projects, reqState, send, sendJson, spinner, tilde, worktreePath } from "./ui.js";
+import { button, field, head, note, progress, stepOf } from "./dialog.js";
 
 export const views = {
   // props: id (a saved project) or project (an unsaved one), src (whose HEAD "Current HEAD" is), mode ("head" picks it), branch, pick (open the branch list).
@@ -49,9 +50,10 @@ export const views = {
       const r = reqState(this.req);
       if (!r) return;
       if (r.done) return this.close();
-      this.stage = r.error ? "" : r.stage ?? "Working…";
-      if (r.error) { this.error = r.error; this.req = null; }
+      if (r.error) { this.error = r.error; this.req = null; this.failed = true; }
+      else this.stage = r.stage ?? "Working…";
     },
+    back(cx) { this.failed = false; this.stage = ""; this.error = ""; cx?.notify(); },
     project() {
       return this.p.project ?? projects().find((x) => x.id === this.p.id);
     },
@@ -68,6 +70,11 @@ export const views = {
       (this.from.trigger.is_focused() ? this.input : this.from.trigger).focus();
     },
     key(e, cx) {
+      if (this.stage) {
+        if (e.key === "escape") return this.close();
+        if (e.key === "enter" && this.failed) this.back(cx);
+        return cx.stop_propagation();
+      }
       if (this.from.key(e, cx)) return cx.stop_propagation();
       if (e.key === "escape") return this.close();
       if (e.keystroke === "tab" || e.keystroke === "shift-tab") this.step();
@@ -82,47 +89,57 @@ export const views = {
       const has = !!branch && !!b?.locals.has(branch);
       const path = b && branch ? worktreePath(b.root, branch) : null;
       const exists = !!path && !!b?.trees.has(path);
-      const note = !b ? "" : !path ? `Goes to ${tilde(b.root)}/<branch>`
+      const text = !b ? "Reading branches…" : !path ? `Goes to ${tilde(b.root)}/<branch>`
         : exists ? `Worktree exists: opens ${tilde(path)}`
         : has ? `Branch exists: checks it out at ${tilde(path)}`
         : `New branch at ${tilde(path)}`;
       const def = p?.defaultBase ?? b?.origin;
-      const caption = (s) => div().w(54).h(32).flex().items_center().flex_none().text_size(11.5).text_color(t.dim).child(s);
       const refLabel = (r) => [
-        svg(ICON(r.head ? "branch" : "git-branch")).size(13).flex_none().text_color(t.dim),
+        svg(ICON("branch")).size(13).flex_none().text_color(t.dim),
         div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.head ? `Current HEAD · ${b?.head.branch ?? "detached"} @ ${b?.head.sha ?? ""}` : r.name),
       ];
       const sel = b && headed(b).find((r) => r.name === this.sel);
-      const button = (id, text, primary, fn) => div().id(id).h(30).px(14).flex().items_center().justify_center().rounded(7).cursor_pointer()
-        .text_size(12.8).font_medium()
-        .when(primary, (el) => el.bg(t.solid).text_color(t.solid_foreground).when(!!this.stage || !b, (el) => el.opacity(0.6)).hover((s) => s.opacity(0.88)))
-        .when(!primary, (el) => el.border(1).border_color(t.border).text_color(t.foreground).hover((s) => s.bg(t.hover)))
-        .on_click((_e, cx) => fn(cx)).child(text);
-      return v_flex().id("projects-worktree").track_focus(this.handle).key_context("WranglerDialog").w_full().p(16).gap(10).bg(t.popover).text_size(13)
+      const name = p?.name ?? this.p.id;
+      const frame = (body, foot) => v_flex().id("projects-worktree").track_focus(this.handle).key_context("WranglerDialog").w_full().bg(t.popover).text_size(13)
         .on_key_down((e, cx) => this.key(e, cx))
-        .on_action("wrangler::Next", (_e, cx) => { if (this.from.open) this.from.choose(this.from.at, cx); else this.step(); cx.notify(); })
-        .on_action("wrangler::Prev", (_e, cx) => { if (!this.from.open) this.step(); cx.notify(); })
+        .on_action("wrangler::Next", (_e, cx) => { if (this.stage) return; if (this.from.open) this.from.choose(this.from.at, cx); else this.step(); cx.notify(); })
+        .on_action("wrangler::Prev", (_e, cx) => { if (!this.stage && !this.from.open) this.step(); cx.notify(); })
         .on_action("wrangler::Back", (_e, cx) => (this.from.open ? this.from.hide(cx) : this.close()))
-        .child(h_flex().gap(8).items_center()
-          .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child(`New worktree of ${p?.name ?? this.p.id}`))
-          .child(div().max_w(220).truncate().text_size(11).text_color(t.dim).child(this.p.src ? tilde(this.p.src) : p?.folder ?? "")))
-        .child(h_flex().gap(8).items_center().child(caption("Branch"))
-          .child(Input.new(this.input).flex_1().h(32).px(10).items_center().rounded(6).border(1)
-            .border_color(this.typing && !this.from.trigger.is_focused() && !this.from.open ? t.accent : t.input).bg(t.background).text_color(t.foreground)))
-        .child(h_flex().gap(8).items_center().when(exists || has, (el) => el.opacity(0.45)).child(caption("From"))
-          .child(this.from.draw(t, "wt-from", 426, !b ? div().text_color(t.dim).child("…") : sel ? refLabel(sel) : div().text_color(t.dim).child("Pick a branch"),
-            (r) => [...refLabel(r),
-              ...(r.name === def ? [div().flex_none().text_size(11).text_color(t.accent).child("default")] : []),
-              div().flex_none().text_size(11).text_color(t.dim).child(r.at ? ago(r.at) : "")],
-            b?.refs.length ? "No matching branches." : `No ${b?.remote ?? "origin"} branches. Fetch ${b?.remote ?? "origin"} first.`)))
-        .child(div().pl(62).text_size(11.5).text_color(has ? t.accent : t.dim).truncate().child(note))
-        .when(!!this.error, (el) => el.child(div().text_size(12).text_color(t.blocked).child(this.error)))
-        .child(h_flex().gap(8).items_center()
-          .child(h_flex().flex_1().min_w(0).gap(6).items_center().text_size(11).text_color(t.dim)
-            .when(!!this.stage, (el) => el.child(spinner(t, this.stage)))
-            .when(!this.stage, (el) => el.child(this.from.open ? "type to filter · ↑↓ · ↵ pick · esc back" : "tab next field · ↓ branches · ↵ create · esc cancel")))
-          .child(button("wt-cancel", "Cancel", false, () => this.close()))
-          .child(button("wt-go", "Create", true, (cx) => this.create(cx))));
+        .child(v_flex().p(16).gap(12).child(body))
+        .child(h_flex().px(16).py(10).gap(8).items_center().border_t(1).border_color(t.border).children(foot));
+      if (this.stage) {
+        const steps = [
+          { label: `Fetching ${this.sel === "HEAD" ? "current HEAD" : this.sel}`, match: "Fetching" },
+          { label: "Creating worktree", match: "Creating worktree", detail: branch },
+          { label: "Opening space", match: "Opening space" },
+        ];
+        const raw = stepOf(this.stage, steps), at = this.failed ? raw : Math.max(0, raw);
+        return frame(
+          v_flex().gap(12)
+            .child(head(t, "git-branch", this.failed ? "Couldn't make the worktree" : "Creating worktree", `${name} · ${path ? tilde(path) : ""}`, this.failed ? t.blocked : t.accent))
+            .child(progress(t, steps, at, this.failed ? this.error : "")),
+          [hints(t, this.failed ? [["↵", "back"], ["esc", "close"]] : [["esc", "close, it keeps going"]]),
+            ...(this.failed ? [button(t, "wt-back", "Back", "primary", (cx) => this.back(cx))] : []),
+            button(t, "wt-close", "Close", null, () => this.close())]);
+      }
+      const W = 426;
+      return frame(
+        v_flex().gap(12)
+          .child(head(t, "git-branch", `New worktree of ${name}`, this.p.src ? tilde(this.p.src) : p?.folder ?? ""))
+          .child(v_flex().gap(10)
+            .child(field(t, "Branch", Input.new(this.input).w(W).h(32).px(10).items_center().rounded(6).border(1)
+              .border_color(this.typing && !this.from.trigger.is_focused() && !this.from.open ? t.accent : t.input).bg(t.background).text_color(t.foreground)))
+            .child(h_flex().when(exists || has, (el) => el.opacity(0.45))
+              .child(field(t, "From", this.from.draw(t, "wt-from", W, !b ? div().text_color(t.dim).child("Reading branches…") : sel ? refLabel(sel) : div().text_color(t.dim).child("Pick a branch"),
+                (r) => [...refLabel(r),
+                  ...(r.name === def ? [div().flex_none().text_size(11).text_color(t.accent).child("default")] : []),
+                  div().flex_none().text_size(11).text_color(t.dim).child(r.at ? ago(r.at) : "")],
+                b?.refs.length ? "No matching branches." : `No ${b?.remote ?? "origin"} branches. Fetch ${b?.remote ?? "origin"} first.`)))))
+          .child(note(t, "folder", text, has ? t.accent : t.dim))
+          .when(!!this.error, (el) => el.child(div().pl(62).text_size(12).text_color(t.blocked).child(this.error))),
+        [hints(t, this.from.open ? [["↑↓", "move"], ["↵", "pick"], ["esc", "back"]] : [["tab", "next field"], ["↓", "branches"]]),
+          button(t, "wt-cancel", "Cancel", null, () => this.close()),
+          button(t, "wt-go", "Create", "primary", (cx) => this.create(cx), !b, "↵")]);
     },
   },
 
@@ -158,28 +175,23 @@ export const views = {
     draw(t) {
       const a = this.a, n = this.n;
       const ok = !!a?.linked && n != null;
-      const button = (id, text, bg, fg, on, fn) => div().id(id).h(30).px(14).flex().items_center().justify_center().rounded(7).text_size(12.8).font_medium()
-        .bg(bg).text_color(fg).border(1).border_color(id === "ad-cancel" ? t.border : bg)
-        .when(on, (el) => el.cursor_pointer().hover((s) => s.opacity(0.88)).on_click((_e, cx) => fn(cx)))
-        .when(!on, (el) => el.opacity(0.5)).child(text);
       const detail = a === undefined ? "…"
         : !a?.linked ? "This agent isn't in a linked worktree."
         : !this.checked ? `Closes its space and agents and removes ${tilde(a.top)}; the branch is kept. Checking for uncommitted changes…`
         : n == null ? `git status failed in ${tilde(a.top)}.`
         : `Closes its space and agents and removes ${tilde(a.top)}; the branch is kept.`;
-      return v_flex().id("projects-agent-delete").track_focus(this.handle).w_full().p(18).gap(12).bg(t.popover).text_size(13)
+      return v_flex().id("projects-agent-delete").track_focus(this.handle).w_full().bg(t.popover).text_size(13)
         .on_key_down((e, cx) => { if (e.key === "escape") this.close(); else if (e.key !== "enter") return; cx.stop_propagation(); })
-        .child(h_flex().items_center()
-          .child(div().flex_1().min_w(0).truncate().text_size(15).font_semibold().text_color(t.foreground).child(`Delete worktree ${a?.branch ?? ""}?`))
-          .child(div().text_size(11).text_color(t.dim).child("Esc")))
-        .child(div().text_color(t.muted).child(detail))
-        .when(ok && n > 0, (el) => el.child(div().text_color(t.blocked).child(`${n} uncommitted change${n > 1 ? "s" : ""}: they will be lost. Force delete runs git worktree remove --force.`)))
-        .when(!!this.error, (el) => el.child(div().text_color(t.blocked).child(this.error)))
-        .child(h_flex().gap(8).items_center()
+        .child(v_flex().p(16).gap(12)
+          .child(head(t, "minus", `Delete worktree ${a?.branch ?? ""}?`, a?.top ? tilde(a.top) : "", t.blocked))
+          .child(div().text_color(t.muted).child(detail))
+          .when(ok && n > 0, (el) => el.child(div().text_size(12).text_color(t.blocked).child(`${n} uncommitted change${n > 1 ? "s" : ""}: they will be lost. Force delete runs git worktree remove --force.`)))
+          .when(!!this.error, (el) => el.child(div().text_color(t.blocked).child(this.error))))
+        .child(h_flex().px(16).py(10).gap(8).items_center().border_t(1).border_color(t.border)
           .child(h_flex().flex_1().gap(6).items_center().text_size(11).text_color(t.dim)
             .when(!!this.stage, (el) => el.child(spinner(t, this.stage))))
-          .child(button("ad-cancel", "Cancel", t.raised, t.foreground, true, () => this.close()))
-          .child(button("ad-go", n ? "Force delete" : "Delete", t.blocked, "#ffffff", ok && !this.stage, (cx) => this.remove(cx))));
+          .child(button(t, "ad-cancel", "Cancel", null, () => this.close()))
+          .child(button(t, "ad-go", n ? "Force delete" : "Delete", "danger", (cx) => this.remove(cx), !(ok && !this.stage))));
     },
   },
 
@@ -190,25 +202,21 @@ export const views = {
     remove() { send("remove", this.p.id); this.close(); },
     draw(t) {
       const p = projects().find((x) => x.id === this.p.id);
-      const button = (id, text, bg, fg, fn) => div().id(id).h(30).px(14).flex().items_center().justify_center().rounded(7).text_size(12.8).font_medium()
-        .bg(bg).text_color(fg).border(1).border_color(id === "pr-cancel" ? t.border : bg)
-        .cursor_pointer().hover((s) => s.opacity(0.88)).on_click(() => fn()).child(text);
-      return v_flex().id("projects-remove").track_focus(this.handle).w_full().p(18).gap(12).bg(t.popover).text_size(13)
+      return v_flex().id("projects-remove").track_focus(this.handle).w_full().bg(t.popover).text_size(13)
         .on_key_down((e, cx) => {
           if (e.key === "escape") this.close();
           else if (e.key === "enter" && p) this.remove();
           else return;
           cx.stop_propagation();
         })
-        .child(h_flex().items_center()
-          .child(div().flex_1().min_w(0).truncate().text_size(15).font_semibold().text_color(t.foreground).child(p ? `Remove ${p.name}?` : "Project not found"))
-          .child(div().text_size(11).text_color(t.dim).child("Esc")))
-        .child(div().text_color(t.muted).child(p
-          ? `Takes it off the projects list and forgets its saved layout. ${tilde(p.folder)}, its worktrees and branches stay as they are.`
-          : "It may have been removed already."))
-        .child(h_flex().gap(8).justify_end()
-          .child(button("pr-cancel", "Cancel", t.raised, t.foreground, () => this.close()))
-          .when(!!p, (el) => el.child(button("pr-go", "Remove", t.blocked, "#ffffff", () => this.remove()))));
+        .child(v_flex().p(16).gap(12)
+          .child(head(t, "x", p ? `Remove ${p.name}?` : "Project not found", p ? tilde(p.folder) : "", t.blocked))
+          .child(div().text_color(t.muted).child(p
+            ? "Takes it off the projects list and forgets its saved layout. The folder, its worktrees and branches stay as they are."
+            : "It may have been removed already.")))
+        .child(h_flex().px(16).py(10).gap(8).items_center().justify_end().border_t(1).border_color(t.border)
+          .child(button(t, "pr-cancel", "Cancel", null, () => this.close()))
+          .when(!!p, (el) => el.child(button(t, "pr-go", "Remove", "danger", () => this.remove(), false, "↵"))));
     },
   },
 };
