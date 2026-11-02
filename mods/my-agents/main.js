@@ -3,7 +3,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, closeOverlay, props, appHome, exec, home, readTextFile, window, layout } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, closeOverlay, props, appHome, exec, home, readTextFile, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -74,6 +74,10 @@ const SECTION_STATUS = { 4: "blocked", 3: "done", 2: "working" };
 const BOTTOM = new Set(["sec-2"]);
 const LIMIT = 3;
 
+// personal: Claude's own sub-agents (Agent tool), from the files projects/hooks/subagents.sh keeps per terminal.
+const SUBS = () => `${appHome()}/data/projects/subagents`;
+const LIST_SUBS = `cd "$1" 2>/dev/null || exit 0; for f in */*.json; do [ -f "$f" ] || continue; printf '%s\\t' "\${f%%/*}"; tr -d '\\n' < "$f"; echo; done`;
+
 function duration(ms) {
   const m = Math.floor(ms / 60000);
   if (m < 1) return "<1m";
@@ -95,6 +99,8 @@ export default class Agents extends View {
   init(_props, cx) {
     if (props()?.sortMenu) return;
     this.folded = new Set();
+    // personal: agents with Claude sub-agents start folded; these were opened.
+    this.opened = new Set();
     this.more = new Set();
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
@@ -114,6 +120,71 @@ export default class Agents extends View {
       const ver = globalThis.__wranglerProjects?.ver;
       if (ver !== this.ver) { this.ver = ver; cx.notify(); }
       this.lookup(cx);
+      if (this.poll && !this.reading) cx.spawn(async (cx) => { await this.readSubs(); cx.notify(); });
+      this.describe(cx);
+    });
+    // personal: terminal → its running Claude sub-agents; descriptions from Claude's meta files. Reread on each change
+    // under the folder; a 1.5 s poll only if the watch fails. Folders of ended terminals are removed every 30 s.
+    this.subs = new Map();
+    this.descs = new Map();
+    cx.spawn(async (cx) => {
+      await exec("mkdir", ["-p", SUBS()]).catch(() => {});
+      for (;;) {
+        await this.readSubs();
+        cx.notify();
+        try { await watchFolder(SUBS()); } catch { this.poll = true; return; }
+      }
+    });
+    cx.timer.every(30000, () => this.sweep());
+  }
+
+  async readSubs() {
+    this.reading = true;
+    const r = await exec("sh", ["-c", LIST_SUBS, "sh", SUBS()]).catch(() => null);
+    const m = new Map();
+    for (const line of (r?.stdout ?? "").split("\n")) {
+      const i = line.indexOf("\t");
+      if (i < 0) continue;
+      try { const t = line.slice(0, i); m.set(t, [...(m.get(t) ?? []), JSON.parse(line.slice(i + 1))]); } catch {}
+    }
+    for (const l of m.values()) l.sort((x, y) => (x.at ?? 0) - (y.at ?? 0));
+    const ids = new Set([...m.values()].flat().map((c) => c.id));
+    for (const id of this.descs.keys()) if (!ids.has(id)) this.descs.delete(id);
+    this.subs = m;
+    this.reading = false;
+  }
+
+  describe(cx) {
+    const need = [...this.subs.values()].flat().filter((c) => c.meta && !this.descs.has(c.id));
+    if (this.describing || !need.length) return;
+    this.describing = true;
+    cx.spawn(async (cx) => {
+      for (const c of need) {
+        try { const d = JSON.parse((await readTextFile(c.meta)) ?? "null")?.description; if (d) this.descs.set(c.id, d); } catch {}
+      }
+      this.describing = false;
+      cx.notify();
+    });
+  }
+
+  sweep() {
+    const live = new Set(terminals().filter((k) => k.state === "live").map((k) => k.address));
+    const gone = [...this.subs.keys()].filter((t) => live.size && !live.has(t) && /^[\w-]+$/.test(t));
+    if (gone.length) exec("rm", ["-rf", "--", ...gone.map((t) => `${SUBS()}/${t}`)]).catch(() => {});
+  }
+
+  isFolded(addr, subs) {
+    return this.folded.has(addr) || (!this.opened.has(addr) && subs.some((s) => s.t.claude));
+  }
+
+  // Claude's sub-agents under the agent or live terminal running them, shaped like terminals() entries for tree().
+  claudeKids(list, terms) {
+    return [...this.subs].flatMap(([t, cs]) => {
+      const a = list.find((x) => x.address === t) ?? terms.find((x) => x.address === t && x.state === "live");
+      return a ? cs.map((c) => ({
+        address: `${t}:${c.id}`, parent: t, state: "live", status: "working",
+        name: this.descs.get(c.id) || c.type || "Sub-agent", program: a.program, pane: a.pane ?? null, claude: true,
+      })) : [];
     });
   }
 
@@ -266,28 +337,26 @@ export default class Agents extends View {
     });
   }
 
+  // personal: plain rows under the card's title, indented by depth; Claude's own sub-agents get the bot icon.
   subRow(t, s, shown, compact) {
     const k = s.t;
     const st = kidStatus(k, this.listed);
-    const pic = icon(k.program, 14, t.foreground);
+    const pic = k.claude ? svg("mods/my-agents/bot.svg").size(12).flex_none().text_color(t.dim) : icon(k.program, 12, t.foreground);
     const on = k.address === shown;
     return h_flex()
       .id(`sub-${k.address}`)
-      .pl(26)
+      .pl(33 + 12 * (s.lines.length - 1))
       .pr(10)
-      .rounded(8)
-      .h(26)
+      .rounded(6)
+      .h(22)
       .flex_none()
-      .gap(0)
+      .gap(6)
       .items_center()
-      .text_size(12.5)
-      .when(on, (el) => el.bg(t.raised))
+      .text_size(12)
       .hover((s) => s.bg(t.hover))
-      .on_click(() => this.peek(k.address))
-      .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(17).mr(4).flex_none()
-        .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
-        .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(6))))
-      .when(Boolean(pic), el => el.child(div().mr(8).child(pic)))
+      // personal: a Claude sub-agent has no terminal: its parent shows it.
+      .on_click(() => (k.claude && k.pane ? run("pane.focus", { pane: k.pane }) : this.peek(k.claude ? k.parent : k.address)))
+      .when(Boolean(pic), (el) => el.child(pic))
       .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).child(k.name || k.template || k.program?.name || k.address))
       .child(this.status(t, { status: st }, compact));
   }
@@ -310,7 +379,8 @@ export default class Agents extends View {
     const sort = sortOf();
     let list = agents();
     this.listed = new Map(list.map((a) => [a.address, a.status]));
-    const all = terminals();
+    const terms = terminals();
+    const all = [...terms, ...this.claudeKids(list, terms)];
     const shown = focused()?.agent;
     const now = Date.now();
     this.track(list, now);
@@ -345,7 +415,7 @@ export default class Agents extends View {
     const withKids = (a, i) => {
       const subs = collapsed ? [] : this.tree(all, a.address);
       const r = row(a, i, subs);
-      if (this.folded.has(a.address)) return [r];
+      if (this.isFolded(a.address, subs)) return [r];
       return [r, ...subs.map((s) => this.subRow(t, s, shown, byPriority))];
     };
 
@@ -353,7 +423,7 @@ export default class Agents extends View {
     const fold = (a, subs) => {
       const sts = subs.map((s) => kidStatus(s.t, this.listed));
       const top = sts.reduce((m, s) => ((RANK[s] ?? 0) > (RANK[m] ?? 0) ? s : m), null);
-      const open = !this.folded.has(a.address);
+      const open = !this.isFolded(a.address, subs);
       return div()
         .id(`fold-${a.address}`)
         .h(18)
@@ -368,11 +438,14 @@ export default class Agents extends View {
         .hover((s) => s.bg(t.hover).text_color(t.foreground))
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          open ? this.folded.add(a.address) : this.folded.delete(a.address);
+          if (open) { this.folded.add(a.address); this.opened.delete(a.address); }
+          else { this.folded.delete(a.address); this.opened.add(a.address); }
           cx.notify();
         })
-        .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(11).flex_none())
-        .when(!open, (el) => el.child(String(subs.length)));
+        // personal: the bot icon and how many, open or folded.
+        .tooltip(open ? "Hide sub-agents" : "Show sub-agents")
+        .child(svg("mods/my-agents/bot.svg").size(12).flex_none())
+        .child(String(subs.length));
     };
 
     // A row reads "space \u00b7 detail": the detail is a tab someone named or the
