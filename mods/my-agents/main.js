@@ -65,7 +65,7 @@ const kidStatus = (k, listed) => {
 };
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
-  { id: "grouped", label: "Grouped by space", icon: "layers" },
+  { id: "grouped", label: "Grouped by project", icon: "layers" },
 ];
 const sortOf = () => SORTS.find((s) => s.id === shared("agents.sort")) ?? SORTS[0];
 const SECTION = { 4: "Needs you", 3: "Done", 2: "Working", 1: "Idle" };
@@ -520,14 +520,20 @@ export default class Agents extends View {
         })
         .child(svg("mods/workspace-chrome/x.svg").size(13));
       // personal: a card. Top line: its project (else space) and state; then the session (Claude's current task,
-      // else a named tab) after the agent's icon; then the branch.
+      // else a named tab) after the agent's icon; then the branch. Under a project (or space) header, no top line:
+      // the state and hover buttons end the branch line (the session line when there's no branch).
       const w = this.where(a);
       const ctx = w?.p.name ?? a.space_name ?? "";
       const st = rankOf(a) === RANK.done && a.status !== "blocked" ? "done" : a.status;
       const sub = /claude/i.test(a.app ?? "") ? clean(a.title) : "";
       const head = (sub && sub !== a.program?.name ? sub : null) ?? more ?? (label(a) || a.program?.name || a.address);
       const hovered = this.hovered === a.address;
-      const top = h_flex()
+      const underHeader = !byPriority && !isPinned;
+      const ends = (el) => el
+        .when(hovered, (e) => e.child(pin))
+        .when(hovered && rankOf(a) === RANK.idle, (e) => e.child(close))
+        .child(this.badge(t, st, when ? now - when : null));
+      const top = !underHeader && ends(h_flex()
         .h(20)
         .gap(6)
         .items_center()
@@ -536,10 +542,7 @@ export default class Agents extends View {
         .child(div().flex_shrink(1).min_w(0).truncate().text_color(t.muted).child(ctx))
         .when(Boolean(machine), (el) => el.child(this.remote(t, a, machine)))
         .when(isPinned, (el) => el.child(svg("mods/workspace-chrome/pin.svg").size(11).flex_none().text_color(t.dim)))
-        .child(div().flex_1())
-        .when(hovered, (el) => el.child(pin))
-        .when(hovered && rankOf(a) === RANK.idle, (el) => el.child(close))
-        .child(this.badge(t, st, when ? now - when : null));
+        .child(div().flex_1()));
       const main = h_flex()
         .h(22)
         .gap(7)
@@ -547,7 +550,9 @@ export default class Agents extends View {
         .when(Boolean(pic), (el) => el.child(pic))
         .child(div().flex_1().min_w(0).truncate().text_size(13.5).when(a.focused, (el) => el.font_medium())
           .text_color(idle ? t.muted : t.foreground).child(head))
-        .when(subs.length > 0, (el) => el.child(fold(a, subs)));
+        .when(subs.length > 0, (el) => el.child(fold(a, subs)))
+        .when(underHeader && Boolean(machine), (el) => el.child(this.remote(t, a, machine)))
+        .when(underHeader && !w?.branch, ends);
       return v_flex()
         .id(`ag-${a.address}`)
         .px(10)
@@ -566,20 +571,27 @@ export default class Agents extends View {
         .on_click(() => run("pane.focus", { pane: a.pane }))
         // personal: agent menu
         .on_mouse_down("right", (e) => run(`projects.agent-menu:${a.address}@${Math.round(e.position.x)},${Math.round(e.position.y)}`))
-        .child(top)
+        .when(!underHeader, (el) => el.child(top))
         .child(main)
         // personal: branch line
-        .when(Boolean(w?.branch), (el) => el.child(this.branchLine(t, w)));
+        .when(Boolean(w?.branch), (el) => el.child(underHeader
+          ? ends(h_flex().h(18).gap(6).items_center().child(this.branchLine(t, w).flex_1().min_w(0)))
+          : this.branchLine(t, w)));
     };
 
-    // Groups in list order: spaces (grouped) or priority sections. Agents of a
-    // space are next to each other in agents(), so neighbours make a group.
+    // Groups in list order: priority sections, or (personal) projects, else the agent's space, each where its first agent is.
     const groups = pinned.length ? [{ id: "pinned", label: "Pinned", status: null, members: pinned }] : [];
+    const byId = new Map();
     for (const a of rest) {
       const r = rankOf(a) || RANK.idle;
-      const id = byPriority ? `sec-${r}` : `sp-${a.space}`;
-      if (groups.at(-1)?.id === id) groups.at(-1).members.push(a);
-      else groups.push({ id, label: byPriority ? SECTION[r] : a.space_name || "", status: byPriority ? SECTION_STATUS[r] : null, members: [a] });
+      const w = !byPriority && this.where(a);
+      const id = byPriority ? `sec-${r}` : w ? `pr-${w.p.id}` : `sp-${a.space}`;
+      if (byId.has(id)) { byId.get(id).members.push(a); continue; }
+      const g = byPriority
+        ? { id, label: SECTION[r], status: SECTION_STATUS[r], members: [a] }
+        : { id, label: w ? w.p.name : a.space_name || "", status: null, color: dot(a, w), members: [a] };
+      byId.set(id, g);
+      groups.push(g);
     }
 
     // A group's header; it folds the group. Folded, it says how many and the most urgent state.
@@ -602,6 +614,8 @@ export default class Agents extends View {
           open ? this.folded.add(g.id) : this.folded.delete(g.id);
           cx.notify();
         })
+        .when(Boolean(g.color), (el) => el.child(h_flex().size(14).flex_none().rounded(4).bg(g.color).items_center().justify_center()
+          .text_size(9).font_bold().text_color("#ffffff").child([...g.label][0]?.toUpperCase() ?? "?")))
         .child(div().truncate().text_color(t[g.status] ?? t.dim).child(g.label))
         .when(byPriority || !open, (el) => el.child(div().text_color(t.dim).child(String(g.members.length))))
         // personal: the fold chevron shows either way, so sections read as foldable.
