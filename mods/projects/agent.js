@@ -27,21 +27,18 @@ export async function agentRun(key, on = null) {
 
 const q = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
 let hook = null, warned = false;
-/** ["--settings", data/projects/claude-settings.json] for Claude launched here (its hooks, given the data folder:
- *  hooks/rename-branch.sh renames temp branches, hooks/subagents.sh lists Claude's sub-agents for the agents list);
- *  [] on a machine, or when rename-branch.sh isn't there (one toast says so; asked again next time). */
+/** ["--settings", data/projects/claude-settings.json] for Claude launched here (its hook, given the data folder:
+ *  hooks/rename-branch.sh renames temp branches); [] on a machine, or when the hook isn't there (one toast says so;
+ *  asked again next time). */
 export async function claudeArgs(on = null) {
   if (on) return [];
   hook ??= (async () => {
-    const hooks = `${appHome()}/mods/projects/hooks`, script = `${hooks}/rename-branch.sh`, subs = `${hooks}/subagents.sh`;
+    const script = `${appHome()}/mods/projects/hooks/rename-branch.sh`;
     if ((await exec("test", ["-f", script])).code !== 0) throw new Error(`${script} is missing.`);
     const path = `${dir()}/claude-settings.json`;
     await exec("mkdir", ["-p", dir()]);
-    const cmd = (s, matcher) => [{ ...(matcher ? { matcher } : {}), hooks: [{ type: "command", command: `bash ${q(s)} ${q(dir())}`, timeout: 5 }] }];
-    const sub = (await exec("test", ["-f", subs])).code === 0
-      ? { SessionStart: cmd(subs, "startup|resume"), SubagentStart: cmd(subs), SubagentStop: cmd(subs), Stop: cmd(subs) }
-      : {};
-    const text = JSON.stringify({ hooks: { UserPromptSubmit: cmd(script), ...sub } }, null, 2) + "\n";
+    const cmd = (s) => [{ hooks: [{ type: "command", command: `bash ${q(s)} ${q(dir())}`, timeout: 5 }] }];
+    const text = JSON.stringify({ hooks: { UserPromptSubmit: cmd(script) } }, null, 2) + "\n";
     const had = await readTextFile(path);
     if (had !== text) await writeTextFile(path, text, had);
     return ["--settings", path];

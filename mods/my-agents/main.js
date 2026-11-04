@@ -3,7 +3,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, closeOverlay, openOverlay, props, appHome, exec, home, readTextFile, watchFolder, window, layout } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, closeOverlay, openOverlay, props, appHome, exec, home, readTextFile, window, layout } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -74,9 +74,8 @@ const SECTION_STATUS = { 4: "blocked", 3: "done", 2: "working" };
 const BOTTOM = new Set(["sec-2"]);
 const LIMIT = 3;
 
-// personal: Claude's own sub-agents (Agent tool), from the files projects/hooks/subagents.sh keeps per terminal.
-const SUBS = () => `${appHome()}/data/projects/subagents`;
-const LIST_SUBS = `cd "$1" 2>/dev/null || exit 0; for f in */*.json; do [ -f "$f" ] || continue; printf '%s\\t' "\${f%%/*}"; tr -d '\\n' < "$f"; echo; done`;
+// personal: Claude's own sub-agents (Agent tool), listed from Claude's session files by subagents.sh.
+const LIST_SUBS = () => `${appHome()}/mods/my-agents/subagents.sh`;
 
 function duration(ms) {
   const m = Math.floor(ms / 60000);
@@ -127,57 +126,35 @@ export default class Agents extends View {
       const ver = globalThis.__wranglerProjects?.ver;
       if (ver !== this.ver) { this.ver = ver; cx.notify(); }
       this.lookup(cx);
-      if (this.poll && !this.reading) cx.spawn(async (cx) => { await this.readSubs(); cx.notify(); });
-      this.describe(cx);
+      // personal: Claude sub-agents, reread while an agent works or a sub-agent is listed.
+      if (!this.reading && (this.subs.size || agents().some((a) => a.status === "working"))) this.readSubs(cx);
     });
-    // personal: terminal → its running Claude sub-agents; descriptions from Claude's meta files. Reread on each change
-    // under the folder; a 1.5 s poll only if the watch fails. Folders of ended terminals are removed every 30 s.
+    // personal: terminal → its running Claude sub-agents ({id, type, desc, at}).
     this.subs = new Map();
-    this.descs = new Map();
-    cx.spawn(async (cx) => {
-      await exec("mkdir", ["-p", SUBS()]).catch(() => {});
-      for (;;) {
-        await this.readSubs();
-        cx.notify();
-        try { await watchFolder(SUBS()); } catch { this.poll = true; return; }
-      }
-    });
-    cx.timer.every(30000, () => this.sweep());
+    this.readSubs(cx);
   }
 
-  async readSubs() {
+  readSubs(cx) {
     this.reading = true;
-    const r = await exec("sh", ["-c", LIST_SUBS, "sh", SUBS()]).catch(() => null);
-    const m = new Map();
-    for (const line of (r?.stdout ?? "").split("\n")) {
-      const i = line.indexOf("\t");
-      if (i < 0) continue;
-      try { const t = line.slice(0, i); m.set(t, [...(m.get(t) ?? []), JSON.parse(line.slice(i + 1))]); } catch {}
-    }
-    for (const l of m.values()) l.sort((x, y) => (x.at ?? 0) - (y.at ?? 0));
-    const ids = new Set([...m.values()].flat().map((c) => c.id));
-    for (const id of this.descs.keys()) if (!ids.has(id)) this.descs.delete(id);
-    this.subs = m;
-    this.reading = false;
-  }
-
-  describe(cx) {
-    const need = [...this.subs.values()].flat().filter((c) => c.meta && !this.descs.has(c.id));
-    if (this.describing || !need.length) return;
-    this.describing = true;
     cx.spawn(async (cx) => {
-      for (const c of need) {
-        try { const d = JSON.parse((await readTextFile(c.meta)) ?? "null")?.description; if (d) this.descs.set(c.id, d); } catch {}
+      const r = await exec("sh", [LIST_SUBS(), `${home()}/.claude`]).catch(() => null);
+      this.reading = false;
+      const out = r?.stdout ?? "";
+      if (out === this.subsOut) return;
+      this.subsOut = out;
+      const m = new Map();
+      for (const line of out.split("\n")) {
+        const [t, id, at, ...rest] = line.split("\t");
+        if (!rest.length) continue;
+        try {
+          const meta = JSON.parse(rest.join("\t"));
+          m.set(t, [...(m.get(t) ?? []), { id, type: meta.agentType, desc: meta.description, at: Number(at) }]);
+        } catch {}
       }
-      this.describing = false;
+      for (const l of m.values()) l.sort((x, y) => x.at - y.at);
+      this.subs = m;
       cx.notify();
     });
-  }
-
-  sweep() {
-    const live = new Set(terminals().filter((k) => k.state === "live").map((k) => k.address));
-    const gone = [...this.subs.keys()].filter((t) => live.size && !live.has(t) && /^[\w-]+$/.test(t));
-    if (gone.length) exec("rm", ["-rf", "--", ...gone.map((t) => `${SUBS()}/${t}`)]).catch(() => {});
   }
 
   isFolded(addr, subs) {
@@ -190,7 +167,7 @@ export default class Agents extends View {
       const a = list.find((x) => x.address === t) ?? terms.find((x) => x.address === t && x.state === "live");
       return a ? cs.map((c) => ({
         address: `${t}:${c.id}`, parent: t, state: "live", status: "working",
-        name: this.descs.get(c.id) || c.type || "Sub-agent", program: a.program, pane: a.pane ?? null, claude: true,
+        name: c.desc || c.type || "Sub-agent", program: a.program, pane: a.pane ?? null, claude: true,
       })) : [];
     });
   }
