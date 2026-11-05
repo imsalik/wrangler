@@ -3,7 +3,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, closeOverlay, openOverlay, props, appHome, exec, home, readTextFile, window, layout } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, closeOverlay, openOverlay, props, appHome, exec, home, readTextFile, window, layout, notify } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -76,6 +76,10 @@ const LIMIT = 3;
 
 // personal: Claude's own sub-agents (Agent tool), listed from Claude's session files by subagents.sh.
 const LIST_SUBS = () => `${appHome()}/mods/my-agents/subagents.sh`;
+// personal: when a Claude session's last real reply came (its transcript's last assistant entry), read from the end.
+const LAST_REPLY = `f=$(ls "$2"/projects/*/"$1".jsonl 2>/dev/null | head -n 1); [ -n "$f" ] || exit 0
+rev=tac; command -v tac >/dev/null || rev="tail -r"
+$rev "$f" | grep '"type":"assistant"' | grep -v -m 1 '"model":"<synthetic>"' | grep -o '"timestamp":"[^"]*"' | tail -n 1`;
 
 function duration(ms) {
   const m = Math.floor(ms / 60000);
@@ -87,6 +91,10 @@ function duration(ms) {
 
 // personal: how long since a waiting agent last changed.
 const ago = (ms) => (ms < 60000 ? "just now" : `${duration(ms)} ago`);
+
+// personal: Claude's prompt cache lives this long after its last request; warn this many minutes before.
+// Overridden by projects.json settings.cache {ttl, warn} (minutes).
+const CACHE = { ttl: 60, warn: 10 };
 
 // The agent's icon from the app's program table: a one-color glyph or a picture.
 function icon(p, size, color) {
@@ -119,31 +127,51 @@ export default class Agents extends View {
     this.checkouts = new Map(JSON.parse(localStorage.getItem("checkouts") ?? "[]"));
     this.want = new Set();
     this.recheck = new Set(this.checkouts.keys());
-    const reread = (cx) => cx.spawn(async (cx) => { try { this.projects = (JSON.parse((await readTextFile(`${appHome()}/data/projects/projects.json`)) ?? "{}").projects ?? []).filter((p) => p.id && p.folder); cx.notify(); } catch {} });
+    this.cache = CACHE;
+    const reread = (cx) => cx.spawn(async (cx) => {
+      try {
+        const j = JSON.parse((await readTextFile(`${appHome()}/data/projects/projects.json`)) ?? "{}");
+        this.projects = (j.projects ?? []).filter((p) => p.id && p.folder);
+        this.cache = { ...CACHE, ...j.settings?.cache };
+        cx.notify();
+      } catch {}
+    });
     reread(cx);
     cx.timer.every(30000, reread);
     cx.timer.every(1500, (cx) => {
       const ver = globalThis.__wranglerProjects?.ver;
       if (ver !== this.ver) { this.ver = ver; cx.notify(); }
       this.lookup(cx);
-      // personal: Claude sub-agents, reread while an agent works or a sub-agent is listed.
-      if (!this.reading && (this.subs.size || agents().some((a) => a.status === "working"))) this.readSubs(cx);
+      // personal: Claude sub-agents and sessions, reread while an agent works or a sub-agent is listed, else every 30 s.
+      if (!this.reading && (this.subs.size || Date.now() - this.readAt > 30000 || agents().some((a) => a.status === "working"))) this.readSubs(cx);
+      this.cacheCheck();
     });
     // personal: terminal → its running Claude sub-agents ({id, type, desc, at}).
     this.subs = new Map();
+    // personal: terminal → its Claude session ({status, at: statusUpdatedAt ms, sid}); cache warnings already given.
+    this.sessions = new Map();
+    this.warned = new Set(JSON.parse(localStorage.getItem("cacheWarned") ?? "[]"));
+    // personal: session id → {key: the statusUpdatedAt it was read at, at: its last reply (ms), 0 for none}.
+    this.replies = new Map();
     this.readSubs(cx);
   }
 
   readSubs(cx) {
     this.reading = true;
+    this.readAt = Date.now();
     cx.spawn(async (cx) => {
       const r = await exec("sh", [LIST_SUBS(), `${home()}/.claude`]).catch(() => null);
-      this.reading = false;
       const out = r?.stdout ?? "";
-      if (out === this.subsOut) return;
+      if (out === this.subsOut) { this.reading = false; return; }
       this.subsOut = out;
       const m = new Map();
+      this.sessions = new Map();
       for (const line of out.split("\n")) {
+        if (line.startsWith("S\t")) {
+          const [, t, status, at, sid] = line.split("\t");
+          if (at) this.sessions.set(t, { status, at: Number(at), sid });
+          continue;
+        }
         const [t, id, at, ...rest] = line.split("\t");
         if (!rest.length) continue;
         try {
@@ -153,6 +181,14 @@ export default class Agents extends View {
       }
       for (const l of m.values()) l.sort((x, y) => x.at - y.at);
       this.subs = m;
+      // personal: a session's last reply, reread only when its status changed.
+      for (const ss of this.sessions.values()) {
+        if (ss.status === "busy" || this.replies.get(ss.sid)?.key === ss.at) continue;
+        const q = await exec("sh", ["-c", LAST_REPLY, "sh", ss.sid, `${home()}/.claude`]).catch(() => null);
+        const ts = q?.stdout.match(/"timestamp":"([^"]+)"/)?.[1];
+        this.replies.set(ss.sid, { key: ss.at, at: ts ? Date.parse(ts) || 0 : 0 });
+      }
+      this.reading = false;
       cx.notify();
     });
   }
@@ -219,13 +255,27 @@ export default class Agents extends View {
       .child(div().flex_1().min_w(0).truncate().child(w.branch));
   }
 
-  // personal: a card's state on its top line: Working 3m, Needs you, Done, or how long it has been idle.
-  badge(t, st, ms) {
+  // personal: a card's state on its top line: Working 3m, Needs you, Done, draft, or how long it has been idle.
+  // personal: its cache cooling (amber, minutes left) or cold (red) when Claude's prompt cache is near or past its end.
+  badge(t, st, ms, cache, draft, addr) {
     const label = (color, icon, text) => h_flex().flex_none().gap(4).items_center().text_size(11.5).text_color(color).child(icon).child(text);
     if (st === "working") return label(t.working, svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().spin(900), `Working ${ms == null ? "" : duration(ms)}`.trim());
-    if (st === "blocked") return this.status(t, { status: "blocked" });
-    if (st === "done") return label(t.done, svg("mods/workspace-chrome/circle-check.svg").size(12).flex_none(), "Done");
-    return div().flex_none().text_size(11.5).text_color(t.dim).child(ms == null ? "idle" : ago(ms));
+    const pill = (tone, icon, text, tip) => h_flex().id(`cache-${addr}`).h(17).px(6).gap(4).flex_none().items_center().rounded(9)
+      .bg(tone + "22").text_size(11).font_medium().text_color(tone).tooltip(tip)
+      .child(svg(`mods/my-agents/${icon}.svg`).size(11).flex_none()).child(text);
+    if (draft && st === "idle") return pill(t.muted, "pencil", "draft", "Nothing sent yet");
+    const note = cache && cache.left <= this.cache.warn * 60000
+      ? cache.left > 0
+        ? pill(t.working, "hourglass", `${Math.ceil(cache.left / 60000)}m`, "Prompt cache expires soon: a message now keeps it warm")
+        : pill(t.ansi4 ?? t.accent, "snowflake", "cold", "Prompt cache expired: the next message re-sends the whole conversation")
+      : null;
+    const base = st === "blocked" ? this.status(t, { status: "blocked" })
+      : st === "done" ? label(t.done, svg("mods/workspace-chrome/circle-check.svg").size(12).flex_none(), "Done")
+      : note && cache.left > 0 ? null
+      : div().flex_none().text_size(11.5).text_color(t.dim).child(ms == null ? "idle" : ago(ms));
+    if (!note) return base;
+    const parts = st === "blocked" || st === "done" ? [base, note] : [note, base];
+    return h_flex().flex_none().gap(5).items_center().children(parts.filter(Boolean));
   }
 
   // Stamps agents whose state changed. Done and idle count as one: looking at a
@@ -234,8 +284,10 @@ export default class Agents extends View {
     let dirty = false;
     for (const a of list) {
       const s = a.status === "done" ? "idle" : a.status;
-      if (this.changed[a.address]?.s === s) continue;
-      this.changed[a.address] = { s, at: now };
+      const was = this.changed[a.address];
+      if (was?.s === s) continue;
+      // personal: req, when it last stopped working: its last request, for agents whose transcript isn't here.
+      this.changed[a.address] = { s, at: now, req: was?.s === "working" ? now : was?.req };
       dirty = true;
     }
     if (!dirty) return;
@@ -262,6 +314,54 @@ export default class Agents extends View {
 
   since(a) {
     return this.changed[a.address]?.at ?? 0;
+  }
+
+  // personal: a waiting Claude agent's prompt cache: ms left (negative once cold), from its last reply in the
+  // transcript (an agent on another machine: when it last stopped working here). Null when working, not read
+  // yet, or nothing was ever sent (a new session, or a resumed one with no message yet keeps the old reply).
+  cacheLeft(a, now = Date.now()) {
+    if (a.status === "working" || !/claude/i.test(a.app ?? "")) return null;
+    const s = this.sessions.get(a.address);
+    const r = s && this.replies.get(s.sid);
+    const at = s ? (s.status === "busy" || r?.key !== s.at ? null : r.at || null) : this.changed[a.address]?.req ?? null;
+    return at == null ? null : { left: this.cache.ttl * 60000 - (now - at), at, sid: s?.sid ?? null };
+  }
+
+  // personal: a Claude session with no reply yet (a new one, nothing sent).
+  isDraft(a) {
+    const s = a.status !== "working" && this.sessions.get(a.address);
+    const r = s && s.status !== "busy" && this.replies.get(s.sid);
+    return Boolean(r && r.key === s.at && !r.at);
+  }
+
+  // personal: cache warnings given, kept across reloads (newest 200).
+  warn(...keys) {
+    for (const k of keys) this.warned.add(k);
+    this.warned = new Set([...this.warned].slice(-200));
+    localStorage.setItem("cacheWarned", JSON.stringify([...this.warned]));
+  }
+
+  // personal: a toast when a waiting agent's cache nears its end; a popup when one with a cooling or cold
+  // cache is opened. Each once per request.
+  cacheCheck() {
+    const warn = this.cache.warn * 60000;
+    const shown = focused()?.agent ?? null;
+    const opened = shown !== this.lastShown && this.lastShown !== undefined;
+    this.lastShown = shown;
+    for (const a of agents()) {
+      const c = this.cacheLeft(a);
+      if (!c || c.left > warn) continue;
+      const key = `${a.address}|${c.at}`;
+      if (opened && a.address === shown && !this.warned.has(`open|${key}`)) {
+        this.warn(`open|${key}`, key);
+        openOverlay({ mod: "projects-ui", kind: "dialog", width: 420, props: { view: "cache", terminal: a.address, at: c.at, ttl: this.cache.ttl, sid: c.sid } });
+        continue;
+      }
+      // Only as it crosses the line, not for every old agent after a start.
+      if (this.warned.has(key) || c.left < warn - 120000 || c.left <= 0 || a.focused) continue;
+      this.warn(key);
+      notify({ title: `Cache expiring: ${clean(a.title) || a.space_name || a.address}`, body: `${Math.ceil(c.left / 60000)}m left. A message now keeps it warm.`, level: "warning", action: { name: "pane.focus", args: { pane: a.pane } } });
+    }
   }
 
   // Looking at a done agent makes it idle; it stays with Done until you leave
@@ -509,7 +609,7 @@ export default class Agents extends View {
       const ends = (el) => el
         .when(hovered, (e) => e.child(pin))
         .when(hovered && rankOf(a) === RANK.idle, (e) => e.child(close))
-        .child(this.badge(t, st, when ? now - when : null));
+        .child(this.badge(t, st, when ? now - when : null, this.cacheLeft(a, now), this.isDraft(a), a.address));
       const top = !underHeader && ends(h_flex()
         .h(20)
         .gap(6)

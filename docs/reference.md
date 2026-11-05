@@ -49,6 +49,8 @@ Bind commands rather than `mod.open:projects-ui`: an overlay opened by a closing
 | `remote` | `origin` | The remote whose branches are offered as bases and fetched. |
 | `naming.enabled` | `true` | `false` turns automatic branch names off. |
 | `naming.model` | `haiku` | The Claude model that names branches. |
+| `cache.ttl` | `60` | Minutes Claude's prompt cache lives after its last reply (the Agents list's cooling and cold marks). |
+| `cache.warn` | `10` | Minutes before `cache.ttl` that an agent shows as cooling, with a toast. |
 
 ### projects
 

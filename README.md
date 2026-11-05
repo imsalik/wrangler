@@ -16,6 +16,7 @@ Made for anyone coming from the herdr TUI or tmux who wants the same keyboard-fi
 - **Auto-named branches**: Claude's first prompt turns a temp `wr/…` branch into `feat/…`, `fix/…`.
 - **A tidy sidebar**: worktrees fold under their project, other machines get one row each, and each list's header has a search button for its picker.
 - **Agents list** sorted by who's waiting: Needs you, Done and Idle on top with how long ago they stopped, Working pinned at the bottom with how long it's been running. Hover an idle agent to close it.
+- **Prompt cache warnings** for waiting Claude agents: an amber hourglass with the minutes left in the last 10 minutes of Claude's 1 hour prompt cache, a toast as it starts, a blue "cold" snowflake once it's gone, and a popup when you open a cooling or cold agent saying how many tokens the next message re-sends. A Claude agent that hasn't sent anything yet shows a grey "draft" pencil.
 - **Agent switcher** with the agents that need you first, and a peek at any of them without leaving where you are.
 - **Conversation history**: every past Claude conversation, newest first, searched by title (fuzzy) or inside your own messages and filtered by project, worktrees included. Enter resumes it with `claude --resume`, in the permission mode it last ran in and in its folder (or its project's, when a worktree is gone).
 - **Prefix keys** (optional), which-key style.

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Running sub-agents of every Claude session in a herdr terminal, read from Claude's own files (no hooks).
 # Usage: subagents.sh <claude dir>. One line each: terminal, agent id, started (s), then its .meta.json, tab-separated.
+# Each session also gets a line: S, terminal, status, statusUpdatedAt (ms), session id.
 # Skips finished ones and ones whose files are 15 min old (interrupted: Claude never marks those finished).
 c=$1
 for s in "$c"/sessions/*.json; do
@@ -12,6 +13,7 @@ for s in "$c"/sessions/*.json; do
   [ -n "$t" ] || continue
   sid=$(sed -n 's/.*"sessionId": *"\([A-Za-z0-9-]*\)".*/\1/p' "$s")
   [ -n "$sid" ] || continue
+  printf 'S\t%s\t%s\t%s\t%s\n' "$t" "$(sed -n 's/.*"status": *"\([a-z]*\)".*/\1/p' "$s")" "$(sed -n 's/.*"statusUpdatedAt": *\([0-9]*\).*/\1/p' "$s")" "$sid"
   for m in "$c"/projects/*/"$sid"/subagents/agent-*.meta.json; do
     [ -f "$m" ] || continue
     grep -q '"finished": *true' "$m" && continue
