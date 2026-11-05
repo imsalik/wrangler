@@ -13,6 +13,7 @@ export default class ProjectsUi extends View {
     this.view = this.p.view ?? "picker";
     this.handle = cx.focus_handle();
     this.handle.focus();
+    this.opened = Date.now();
     // Tab, shift-Tab and Esc in a dialog's WranglerDialog context: wrangler::Next / Prev / Back (else Tab
     // leaves the dialog and Esc closes it from inside a dropdown).
     if (!globalThis.__wranglerKeys) {
@@ -29,8 +30,12 @@ export default class ProjectsUi extends View {
       this.start?.(cx);
       cx.notify();
     });
-    // Views' follow() ticks: only a timer started here can re-render the view.
-    cx.timer.every(100, (cx) => { if (this.tick?.()) cx.notify(); });
+    // Views' follow() ticks: only a timer started here can re-render the view. A view that keeps the keyboard on its
+    // root (grabs) takes it back in its first 1.5 s: opened from the prefix, the prefix closing hands it to the terminal.
+    cx.timer.every(100, (cx) => {
+      if (this.grabs && Date.now() - this.opened < 1500 && !this.handle.is_focused()) this.handle.focus();
+      if (this.tick?.()) cx.notify();
+    });
   }
 
   render() {

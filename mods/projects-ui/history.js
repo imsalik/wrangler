@@ -21,6 +21,7 @@ function age(s) {
 export const views = {
   history: {
     close: closeSelf,
+    grabs: true,
 
     start() {
       this.filter = this.p.q ?? "";
@@ -248,8 +249,13 @@ export const views = {
 
     // The popup, its keys and its search line (text with a caret, else the placeholder, then the extras on the right).
     frame(t, keys, text, placeholder, extras) {
-      return v_flex().id("history").track_focus(this.handle).size_full().bg(t.popover).text_size(13)
+      // Tab, ⇧Tab and Esc come as WranglerDialog actions (main.js binds them): Herdr would move focus out of the popup.
+      const key = (k, shift) => (_e, cx) => keys({ key: k, modifiers: { shift } }, cx);
+      return v_flex().id("history").track_focus(this.handle).key_context("WranglerDialog").size_full().bg(t.popover).text_size(13)
         .on_key_down(keys)
+        .on_action("wrangler::Next", key("tab", false))
+        .on_action("wrangler::Prev", key("tab", true))
+        .on_action("wrangler::Back", key("escape", false))
         .child(h_flex().h(46).flex_none().px(16).gap(10).items_center().border_b(1).border_color(t.border)
           .child(svg(ICON("search")).size(16).flex_none().text_color(t.dim))
           .child(h_flex().flex_1().min_w(0).items_center().text_size(14)

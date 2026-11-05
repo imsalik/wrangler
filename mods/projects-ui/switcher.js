@@ -32,6 +32,7 @@ const icon = (p, size, color) => !p?.icon ? null : p.tint ? svg(p.icon).size(siz
 export const views = {
   switch: {
     close: closeSelf,
+    grabs: true,
 
     start() {
       this.filter = "";
