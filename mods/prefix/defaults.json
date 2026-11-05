@@ -24,6 +24,7 @@
     ] },
     { "title": "App", "items": [
       {"show": "b", "label": "Sidebar", "run": "layout.toggle:sidebar"},
+      {"show": "⇧B", "label": "Spaces list", "bind": {"shift-b": "layout.toggle:spaces"}},
       {"show": "⇧H", "label": "Side panel", "bind": {"shift-h": "layout.toggle:panel"}},
       {"show": "s", "label": "Settings", "run": "app.settings"},
       {"show": "?", "label": "All keys", "bind": {"?": "app.help", "shift-/": "app.help"}},

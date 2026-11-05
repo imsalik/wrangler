@@ -630,12 +630,14 @@ export default class Agents extends View {
     const rows = collapsed ? list.flatMap(withKids) : section(split ? groups.filter((g) => !BOTTOM.has(g.id)) : groups);
     const bottom = split ? section(groups.filter((g) => BOTTOM.has(g.id))) : [];
     this.lookup(cx);
+    const spacesHidden = Boolean(find(layout(), "spaces")?.hidden);
 
     return v_flex()
       .size_full()
       .min_h(0)
+      .pb(6)
       .bg(t.chrome)
-      .border_t(1)
+      .when(!spacesHidden, (el) => el.border_t(1))
       .border_color(t.border)
       .text_size(13)
       // personal: switcher, sort, past conversations and new agent on the header; in the rail, new agent on top.
