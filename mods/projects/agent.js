@@ -53,6 +53,17 @@ export async function claudeArgs(on = null) {
   return hook;
 }
 
+const MODES = new Set(["default", "manual", "acceptEdits", "auto", "bypassPermissions", "dontAsk", "plan"]);
+/** Claude's args for a permission mode: bypass skips permissions, other known modes go to --permission-mode, else []. */
+export const modeArgs = (mode) => (mode === "bypassPermissions" ? ["--dangerously-skip-permissions"] : MODES.has(mode) ? ["--permission-mode", mode] : []);
+
+/** The permission mode a past Claude conversation last ran in (its transcript's last prompt), else null. */
+export async function lastMode(id) {
+  if (!/^[\w-]+$/.test(id ?? "")) return null;
+  const r = await exec("sh", ["-c", 'for f in "$1"/projects/*/"$2".jsonl; do [ -f "$f" ] && grep -o \'"permissionMode":"[A-Za-z]*"\' "$f" | tail -n 1; done', "sh", `${home()}/.claude`, id]).catch(() => null);
+  return r?.stdout.match(/"permissionMode":"(\w+)"/)?.[1] ?? null;
+}
+
 /** Whether a pane's argv runs the agent key (run: its run argv). */
 export const isAgent = (key, run) => (argv) => base(argv[0]) === key || (!!run?.[0] && argv[0] === run[0]);
 

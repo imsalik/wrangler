@@ -12,12 +12,12 @@ Made for anyone coming from the herdr TUI or tmux who wants the same keyboard-fi
 
 - **Projects** that reopen with their saved tabs, splits and programs.
 - **Worktrees** from HEAD or any remote branch, nested under their project in the Spaces list.
-- **New agent** dialog: any installed agent (Claude, Codex, OpenCode, ...), in the project folder or a fresh worktree.
+- **New agent** dialog: any installed agent (Claude, Codex, OpenCode, ...), in the project folder or a fresh worktree. Claude starts in the permission mode picked there (Default, Auto, Edit, Full Access); the dialog opens with the agent and mode you last started with.
 - **Auto-named branches**: Claude's first prompt turns a temp `wr/…` branch into `feat/…`, `fix/…`.
 - **A tidy sidebar**: worktrees fold under their project, other machines get one row each, and each list's header has a search button for its picker.
 - **Agents list** sorted by who's waiting: Needs you, Done and Idle on top with how long ago they stopped, Working pinned at the bottom with how long it's been running. Hover an idle agent to close it.
 - **Agent switcher** with the agents that need you first, and a peek at any of them without leaving where you are.
-- **Conversation history**: every past Claude conversation, newest first, searched by title (fuzzy) or inside your own messages and filtered by project, worktrees included. Enter resumes it with `claude --resume`, in its folder (or its project's, when a worktree is gone).
+- **Conversation history**: every past Claude conversation, newest first, searched by title (fuzzy) or inside your own messages and filtered by project, worktrees included. Enter resumes it with `claude --resume`, in the permission mode it last ran in and in its folder (or its project's, when a worktree is gone).
 - **Prefix keys** (optional), which-key style.
 
 ## Requirements

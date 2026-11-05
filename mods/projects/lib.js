@@ -23,15 +23,25 @@ export async function watchDir() {
 // headed: a bases' refs with "Current HEAD" first, one array per bases object, for the composer.
 // text: projects.json as last read or written, known: it parsed.
 // mru: agent addresses, most recently focused first (the agent switcher's order).
+// composed: the New agent dialog's last start, {agent, mode} (its defaults next time).
 const cache = (globalThis.__wranglerProjects ??= { known: null, memo: new Map() });
 cache.reqs ??= new Map();
 cache.headed ??= new WeakMap();
 cache.ver ??= 0;
 cache.mru ??= [];
+cache.composed ??= null;
 const memo = cache.memo;
 const bump = () => { cache.ver++; };
 
 export const mru = () => cache.mru;
+
+/** Remembers a start's agent and Claude's mode (kept in localStorage "composed"), written only when they change. */
+export function composed(o) {
+  const next = { agent: o.agent ?? "claude", mode: o.agent === "claude" ? o.mode ?? "" : cache.composed?.mode ?? "" };
+  if (cache.composed?.agent === next.agent && cache.composed?.mode === next.mode) return;
+  cache.composed = next;
+  try { localStorage.setItem("composed", JSON.stringify(next)); } catch {}
+}
 
 /** Puts addr first in mru (50 kept); false when it already was. */
 export function used(addr) {

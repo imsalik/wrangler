@@ -8,6 +8,8 @@ import { closeOverlay, home, panes, run, shared, spaces, theme } from "herdr";
 export const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 
 const C = () => globalThis.__wranglerProjects ?? null;
+/** The New agent dialog's last start, {agent, mode}, else null. */
+export const lastComposed = () => C()?.composed ?? null;
 export const allProjects = () => C()?.known?.projects ?? [];
 export const projects = () => allProjects().filter((p) => p.id && p.folder);
 const peek = (key) => C()?.memo.get(key)?.v;

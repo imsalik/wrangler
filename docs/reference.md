@@ -13,7 +13,7 @@ Every action is a `projects.*` command, usable in `keys.json` or with `herdr-app
 | `projects.switch` / `projects.switch-last` | agent switcher / flip to the previous agent without the popup |
 | `projects.peek:terminal` / `projects.peek-go` / `projects.peek-close` | peek at a terminal over the window / go to the peeked one / close the peek |
 | `projects.history[:query[\|messages]]` | past Claude conversations, searching `query` (`messages`: inside your messages; `@x`: the project picker filtered by `x`) |
-| `projects.resume:<json>` | resume a conversation, `{"id", "cwd", "title"?, "home"?}`: `claude --resume` in a new tab of the space at `cwd`, or at `home` when `cwd` is gone |
+| `projects.resume:<json>` | resume a conversation, `{"id", "cwd", "title"?, "home"?}`: `claude --resume` (with the transcript's last `permissionMode`; bypass as `--dangerously-skip-permissions`) in a new tab of the space at `cwd`, or at `home` when `cwd` is gone |
 
 Any command that opens a menu (`space-menu`, `row-menu`, `agent-menu`, `menu`, `new-menu`) takes an `@x,y` suffix (window px, e.g. `projects.agent-menu:t7@120,340`) and opens the menu there; the sidebar sends the click position.
 | `projects.worktree[:id]` | new worktree dialog; no id: the focused space's repo |

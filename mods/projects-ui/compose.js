@@ -1,8 +1,8 @@
-// The "New agent" dialog: project, This folder | New worktree (optional branch, base), agent (programs' agents); Open runs it on the host.
+// The "New agent" dialog: project, agent (programs' agents), Claude's permission mode, This folder | New worktree (optional branch, base); Open runs it on the host.
 import { div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { exec, knownAgents, panes, spaces } from "herdr";
-import { Dropdown, ICON, ago, badge, basesOf, closeSelf, follow, headed, hints, newReq, projects, reqState, send, sendJson, shownSpace, summary, tilde, worktreePath } from "./ui.js";
+import { Dropdown, ICON, ago, lastComposed, badge, basesOf, closeSelf, follow, headed, hints, newReq, projects, reqState, send, sendJson, shownSpace, summary, tilde, worktreePath } from "./ui.js";
 import { button, field, ghost, head, note, progress, stepOf } from "./dialog.js";
 
 const leaves = (n) => (n.split ? n.children.flatMap(leaves) : [n.pane]);
@@ -19,21 +19,26 @@ async function installedAgents(on) {
   const ok = new Set((r?.stdout ?? "").split("\n").filter((x) => x.startsWith("wr-ok:")).map((x) => x.slice(6)));
   return l.filter((a) => a.installed || ok.has(prog(a)));
 }
+// Claude's --permission-mode choices; "" passes none (settings' defaultMode).
+const MODES = [["", "Default", "shield"], ["auto", "Auto", "sparkles"], ["acceptEdits", "Edit", "pencil"], ["bypassPermissions", "Full Access", "lock-open"]];
 const icon = (a, size, color) => (!a?.icon ? null : a.tint ? svg(a.icon).size(size).flex_none().text_color(color) : image(a.icon).w(size).h(size).flex_none());
 
 export const views = {
   // props: id (the project to preselect), where ("local" | "worktree"), pick (open the base list).
-  // Keys: tab / shift-tab move between fields, ←→ or space flip Where, ↓ opens a list, ↵ opens, esc cancels.
+  // Keys: tab / shift-tab move between fields, ←→ or space flip Where and Mode, ↓ opens a list, ↵ opens, esc cancels.
   compose: {
     close: closeSelf,
     start(cx) {
       this.where = this.p.where === "worktree" ? "worktree" : "local";
-      this.agent = "claude";
+      const last = lastComposed();
+      this.agent = last?.agent ?? "claude";
       this.pid = this.p.id ?? projects()[0]?.id ?? null;
       this.base = null;
       this.stage = "";
       this.error = "";
       this.whereF = cx.focus_handle();
+      this.modeF = cx.focus_handle();
+      this.mode = MODES.some(([m]) => m === last?.mode) ? last.mode : "";
       this.branch = InputState.new({ placeholder: "optional: auto-named if empty" });
       this.branch.on("change", (_e, cx) => { this.error = ""; cx.notify(); });
       this.branch.on("submit", (_e, cx) => this.submit(cx));
@@ -90,7 +95,7 @@ export const views = {
     back(cx) { this.failed = false; this.stage = ""; this.error = ""; cx?.notify(); },
     // The tab order: focus handles, and the branch input (no handle; its focus comes from events).
     fields() {
-      return [this.proj.trigger, this.whereF, this.ag.trigger, ...(this.where === "worktree" ? [this.branch, this.from.trigger] : [])];
+      return [this.proj.trigger, this.ag.trigger, ...(this.agent === "claude" ? [this.modeF] : []), this.whereF, ...(this.where === "worktree" ? [this.branch, this.from.trigger] : [])];
     },
     step(by, cx) {
       for (const d of [this.proj, this.ag, this.from]) if (d.open) return d.choose(d.at, cx);
@@ -145,7 +150,7 @@ export const views = {
       this.error = "";
       this.stage = "Starting…";
       this.req = newReq();
-      sendJson("agent-run", { id: p.id, where: this.where, base: this.base, branch: this.branch.value(), agent: this.agent, req: this.req });
+      sendJson("agent-run", { id: p.id, where: this.where, base: this.base, branch: this.branch.value(), agent: this.agent, ...(this.agent === "claude" && this.mode ? { mode: this.mode } : {}), req: this.req });
       cx.notify();
     },
     key(e, cx) {
@@ -161,6 +166,10 @@ export const views = {
       else if (e.keystroke === "shift-tab") this.step(-1, cx);
       else if ((e.key_char ?? e.key) === "/" && !this.typing) this.proj.show(cx);
       else if (flip && this.whereF.is_focused()) this.where = this.where === "worktree" ? "local" : "worktree";
+      else if (flip && this.modeF.is_focused()) {
+        const i = MODES.findIndex(([m]) => m === this.mode), by = e.key === "left" ? -1 : 1;
+        this.mode = MODES[(i + by + MODES.length) % MODES.length][0];
+      }
       else if (e.key === "enter" || e.keystroke === "ctrl-enter") this.submit(cx);
       else return;
       cx.stop_propagation();
@@ -170,12 +179,14 @@ export const views = {
       const p = this.project(), b = this.b, sp = spaces(), ps = panes();
       const wt = this.where === "worktree";
       const ag = this.agents.find((a) => a.key === this.agent) ?? { key: this.agent, name: this.agent };
+      const modeName = ag.key === "claude" && this.mode ? MODES.find(([m]) => m === this.mode)[1].toLowerCase() : "";
       const agName = ag.key === "claude" ? "Claude" : ag.name;
+      const agWith = modeName ? `${agName} (${modeName})` : agName;
       const branch = this.branch.value().trim();
       const open = !wt && p && shownSpace(p, sp, ps);
       const leaf = !open && agentLeaf(p?.layout, ag.key);
       const baseName = this.base === "HEAD" ? `current HEAD (${b?.head.branch ?? "detached"})` : this.base;
-      const agentPart = this.agent === "none" ? "no agent" : leaf ? `${agName} in the layout's pane` : !open && !p?.layout?.tabs?.length ? `${agName} as its only tab` : `${agName} in a new tab`;
+      const agentPart = this.agent === "none" ? "no agent" : leaf ? `${agWith} in the layout's pane` : !open && !p?.layout?.tabs?.length ? `${agWith} as its only tab` : `${agWith} in a new tab`;
       const target = wt && b ? (branch ? tilde(worktreePath(b.root, branch)) : `${tilde(b.root)}/${b.prefix ?? "wr"}-…`) : p?.folder ?? "";
       const hint = !p ? "Pick a project to start in." : wt
         ? (!b ? "Reading branches…" : `${target} from ${baseName}, in a new space, ${agentPart}.`)
@@ -219,11 +230,11 @@ export const views = {
         div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.head ? `Current HEAD · ${b?.head.branch ?? "detached"} @ ${b?.head.sha ?? ""}` : r.name),
       ];
       const sel = b && headed(b).find((r) => r.name === this.base);
-      const focusW = this.whereF.is_focused();
-      const seg = (id, on, icon, text, fn) => h_flex().id(id).px(12).h(26).gap(7).items_center().rounded(6).cursor_pointer()
+      const focusW = this.whereF.is_focused(), focusM = this.modeF.is_focused();
+      const seg = (id, on, icon, text, fn, f = this.whereF) => h_flex().id(id).px(12).h(26).gap(7).items_center().rounded(6).cursor_pointer()
         .text_color(on ? t.foreground : t.muted).when(on, (el) => el.bg(t.selected)).when(!on, (el) => el.hover((s) => s.bg(t.hover)))
-        .on_click((_e, cx) => { fn(); this.whereF.focus(); cx.notify(); })
-        .child(svg(ICON(icon)).size(13).flex_none().text_color(on ? t.foreground : t.dim)).child(text);
+        .on_click((_e, cx) => { fn(); f.focus(); cx.notify(); })
+        .when(!!icon, (el) => el.child(svg(icon.includes("/") ? icon : ICON(icon)).size(13).flex_none().text_color(on ? t.foreground : t.dim))).child(text);
       const W = 466, AG = 150;
       const toTree = (cx) => { this.where = "worktree"; this.branch.focus(); this.typing = true; cx.notify(); };
       return frame(
@@ -234,6 +245,11 @@ export const views = {
               this.proj.draw(t, "cp-proj", W - AG - 8, p ? projLabel(p) : div().text_color(t.dim).child(projects().length ? "Pick a project" : "No projects yet"), projRow, "No matching projects."),
               this.ag.draw(t, "ca-agent", AG, [icon(ag, 15, t.foreground), div().flex_1().min_w(0).truncate().text_color(t.foreground).child(agName)].filter(Boolean),
                 (a) => [icon(a, 15, t.foreground), div().flex_1().min_w(0).truncate().text_color(t.foreground).child(a.key === "claude" ? "Claude" : a.name)].filter(Boolean))))
+            .child(field(t, "Mode", ag.key === "claude"
+              ? h_flex().id("cm").track_focus(this.modeF).p(2).gap(2).rounded(8).bg(t.background).border(1)
+                .border_color(focusM ? t.accent : t.border).text_size(12.5)
+                .children(MODES.map(([m, label, pic]) => seg(`cm-${m || "default"}`, this.mode === m, `mods/projects-ui/${pic}.svg`, label, () => { this.mode = m; }, this.modeF)))
+              : ghost(t, W, "Claude only")))
             .child(field(t, "Where", h_flex().id("cw").track_focus(this.whereF).p(2).gap(2).rounded(8).bg(t.background).border(1)
               .border_color(focusW ? t.accent : t.border).text_size(12.5)
               .child(seg("cw-local", !wt, "folder", "This folder", () => { this.where = "local"; }))
@@ -251,7 +267,7 @@ export const views = {
               : ghost(t, W, sel ? (sel.head ? "Current HEAD" : sel.name) : "origin", "branch", toTree))))
           .child(note(t, wt ? "git-branch" : "folder", hint))
           .when(!!this.error, (el) => el.child(div().pl(62).text_size(12).text_color(t.blocked).child(this.error))),
-        [hints(t, this.proj.open || this.ag.open || this.from.open ? [["↑↓", "move"], ["↵", "pick"], ["esc", "back"]] : [["tab", "next"], ["←→", "where"], ["/", "project"]]),
+        [hints(t, this.proj.open || this.ag.open || this.from.open ? [["↑↓", "move"], ["↵", "pick"], ["esc", "back"]] : [["tab", "next"], ["←→", "switch"], ["/", "project"]]),
           button(t, "cc-cancel", "Cancel", null, () => this.close()),
           button(t, "cc-go", "Open", "primary", (cx) => this.submit(cx), !p, "↵")]);
     },

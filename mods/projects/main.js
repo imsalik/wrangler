@@ -22,8 +22,8 @@
 
 import { View, div } from "gpui-kit";
 import { agents, closeOverlay, exec, focused, nextCommand, notify, openOverlay, panes, pickFolder, run, spaces, watchFolder } from "herdr";
-import { apply, bases, basesAge, capture, checkedOut, checkout, checkoutAge, knownData, mru, ownerNow, peekBases, peekCheckout, dir, expand, freeId, git, gitr, load, make, owner, place, spaceFor, tilde, track, until, update, used, viaLogin, watchDir, worktree } from "./lib.js";
-import { agentRun, branchName, claudeArgs, isAgent, tempBranch, titleOf } from "./agent.js";
+import { apply, bases, basesAge, capture, checkedOut, checkout, checkoutAge, composed, knownData, mru, ownerNow, peekBases, peekCheckout, dir, expand, freeId, git, gitr, load, make, owner, place, spaceFor, tilde, track, until, update, used, viaLogin, watchDir, worktree } from "./lib.js";
+import { agentRun, branchName, claudeArgs, isAgent, lastMode, modeArgs, tempBranch, titleOf } from "./agent.js";
 
 const busy = new Set();
 
@@ -149,14 +149,14 @@ async function wtFrom(spaceId, branch, from, mode = "head") {
   else worktreeDialog(o.project, mode, null, o.src, o.saved);
 }
 
-/** Starts what the composer says: o = {project, where, base, branch, agent, prompt?}. The local project's space
+/** Starts what the composer says: o = {project, where, base, branch, agent, mode?, prompt?}. The local project's space
  *  (opened if needed) or a new worktree's (a marked temp branch when empty), with Claude in a new tab or, in a space
  *  it opens, the layout's first Claude pane (its only tab without a layout); prompt, if any, is its first message. Resolves { space, folder, branch, tab }. */
 async function launch(o, stage = () => {}) {
   const p = o.project, machine = p.machine ?? null, prompt = (o.prompt ?? "").trim();
   const key = o.agent && o.agent !== "none" ? o.agent : null;
   const cmd = key ? await agentRun(key, machine) : null;
-  const extra = key === "claude" ? await claudeArgs(machine) : [];
+  const extra = key === "claude" ? [...(await claudeArgs(machine)), ...modeArgs(o.mode)] : [];
   let folder = expand(p.folder), branch = null, s = null;
   if (o.where === "worktree") {
     const temp = !(o.branch ?? "").trim();
@@ -199,13 +199,13 @@ async function compose(id, where, pick) {
   openOverlay({ mod: "projects-ui", kind: "dialog", width: 560, props: { view: "compose", ...(id ? { id } : {}), ...(where ? { where } : {}), ...(pick ? { pick: true } : {}) } });
 }
 
-/** Resumes a past Claude conversation, o = {id, cwd, title, home?}: a new tab in the space at cwd, else a new space there.
+/** Resumes a past Claude conversation, o = {id, cwd, title, home?}, in the permission mode it last ran in: a new tab in the space at cwd, else a new space there.
  *  When cwd is gone (a deleted worktree), in home (its project's folder) else ~: `claude --resume` finds it from anywhere. */
 async function resume(o) {
   const here = async (d) => d && (await exec("test", ["-d", expand(d)]).catch(() => null))?.code === 0;
   const folder = (await here(o.cwd)) ? o.cwd : (await here(o.home)) ? expand(o.home) : expand("~");
   if (folder !== o.cwd) toast("Folder is gone", `${tilde(o.cwd)} no longer exists: resuming in ${tilde(folder)}.`, "info");
-  const argv = [...(await agentRun("claude")), ...(await claudeArgs()), "--resume", o.id];
+  const argv = [...(await agentRun("claude")), ...(await claudeArgs()), ...modeArgs(await lastMode(o.id)), "--resume", o.id];
   const name = titleOf(o.title || "claude");
   const s = await spaceFor({ folder, machine: null });
   if (!s) {
@@ -372,6 +372,7 @@ export default class Projects extends View {
     this.data = knownData() ?? { projects: [] };
     // Agent focus history for the switcher: checked on focus changes, kept across restarts.
     if (!mru().length) try { for (const a of JSON.parse(localStorage.getItem("mru") ?? "[]").reverse()) used(a); } catch {}
+    try { globalThis.__wranglerProjects.composed ??= JSON.parse(localStorage.getItem("composed") ?? "null"); } catch {}
     let last = null;
     cx.timer.every(250, () => {
       const now = focusedTerminal();
@@ -449,6 +450,7 @@ export default class Projects extends View {
         const project = (await load()).projects.find((x) => x.id === o.id);
         if (!project) throw new Error(`No project ${o.id}.`);
         await launch({ ...o, project }, stage);
+        composed(o);
       });
     } else if (name === "agent-info" && key) await track(rest[0], async (stage) => {
       const a = await agentAt(key, true);
