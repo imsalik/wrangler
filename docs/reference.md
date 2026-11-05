@@ -12,6 +12,8 @@ Every action is a `projects.*` command, usable in `keys.json` or with `herdr-app
 | `projects.compose[:id[\|where]]` | New agent dialog; `where` is `local` or `worktree` |
 | `projects.switch` / `projects.switch-last` | agent switcher / flip to the previous agent without the popup |
 | `projects.peek:terminal` / `projects.peek-go` / `projects.peek-close` | peek at a terminal over the window / go to the peeked one / close the peek |
+| `projects.history[:query[\|messages]]` | past Claude conversations, searching `query` (`messages`: inside your messages; `@x`: the project picker filtered by `x`) |
+| `projects.resume:<json>` | resume a conversation, `{"id", "cwd", "title"?, "home"?}`: `claude --resume` in a new tab of the space at `cwd`, or at `home` when `cwd` is gone |
 
 Any command that opens a menu (`space-menu`, `row-menu`, `agent-menu`, `menu`, `new-menu`) takes an `@x,y` suffix (window px, e.g. `projects.agent-menu:t7@120,340`) and opens the menu there; the sidebar sends the click position.
 | `projects.worktree[:id]` | new worktree dialog; no id: the focused space's repo |
@@ -99,6 +101,16 @@ Any installed mod can add a group with `mods/<name>/prefix.json` (wrangler's is 
 
 `show` is the keycap text, `bind` maps keys to `keys.json` actions, a lone `run` binds `show` itself.
 
+## History
+
+`projects.history` (the clock on the Agents header, prefix `r`) lists past Claude conversations, newest first: interactive ones only (not `claude -p` or SDK runs), not ones running now, and not under a folder in `data/projects/history-ignore`.
+
+- Typing searches titles, last prompt, folder and branch: every word must match, ignoring case, spaces and punctuation, and a word's letters in order in the title also count. Best matches first, then newest. ⌃↵ searches inside your own messages instead (slower: it reads whole transcripts).
+- Project chips: All, Other (outside every project), the focused space's project, then your recent picks; "N more" or `@` lists every project. A project includes its worktrees, deleted ones too. Tab cycles the chips.
+- ↵ resumes. A conversation whose folder is gone opens in its project's folder (else `~`); Claude finds it from any folder.
+
+`mods/projects/history.sh` does the reading: it keeps one line per transcript in `data/projects/history.tsv` and on each run reads only transcripts that changed since (their last 64 KiB), so a search takes tens of milliseconds after the first run.
+
 ## Branch renaming
 
 1. New agent with New worktree and an empty Branch creates `<branchPrefix>/<8 hex>` and marks it in git config (`branch.<name>.wranglerTemp`).
@@ -111,13 +123,14 @@ The prompt is [`mods/projects/naming-prompt.txt`](../mods/projects/naming-prompt
 
 - `~/.config/herdr-app/data/projects/projects.json`: your projects.
 - `~/.config/herdr-app/data/projects/claude-settings.json`: generated, points at this clone's hook.
+- `~/.config/herdr-app/data/projects/history.tsv`: the history's cache of Claude transcripts (safe to delete).
 - `<worktreeRoot>/<repo>/<branch>`: worktrees.
 - `${XDG_STATE_HOME:-~/.local/state}/wrangler/rename.log`: hook failures; `locks/` beside it holds once-per-worktree markers, pruned after 30 days.
 - Herdr's per-mod storage: the switcher's focus history, the Agents list's pins.
 
 ## What it runs
 
-`git` (including `git fetch` for a remote base), `claude -p` for branch names (network), `hc` (background reads), `herdr-app` (from the hook, to rename spaces) and small shell helpers (`sh`, `readlink`, `mkdir`, `test`, `sleep`).
+`git` (including `git fetch` for a remote base), `claude -p` for branch names (network), `hc` (background reads), `herdr-app` (from the hook, to rename spaces) and small shell helpers (`sh`, `readlink`, `mkdir`, `test`, `sleep`; for the history `ls`, `tail`, `awk`, `grep`, `sort`, `xargs`, reading `~/.claude`).
 
 ## Layout
 

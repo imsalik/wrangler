@@ -17,6 +17,7 @@ Made for anyone coming from the herdr TUI or tmux who wants the same keyboard-fi
 - **A tidy sidebar**: worktrees fold under their project, other machines get one row each, and each list's header has a search button for its picker.
 - **Agents list** sorted by who's waiting: Needs you, Done and Idle on top with how long ago they stopped, Working pinned at the bottom with how long it's been running. Hover an idle agent to close it.
 - **Agent switcher** with the agents that need you first, and a peek at any of them without leaving where you are.
+- **Conversation history**: every past Claude conversation, newest first, searched by title (fuzzy) or inside your own messages and filtered by project, worktrees included. Enter resumes it with `claude --resume`, in its folder (or its project's, when a worktree is gone).
 - **Prefix keys** (optional), which-key style.
 
 ## Requirements
@@ -56,6 +57,7 @@ The prefix is whichever key you bind to `mod.open:prefix`. Leave it unbound (or 
 | Key | Does |
 |---|---|
 | `a` | agent switcher |
+| `r` | resume a past Claude conversation |
 | `⇧O` | projects picker |
 | `⇧A` | New agent |
 | `g` | new worktree |
@@ -68,6 +70,7 @@ Herdr's own commands are there too: tabs `c n p 1-9`, panes `; " hjkl z x`, spac
 Optional, in `~/.config/herdr-app/data/`:
 
 - `projects/projects.json`: your projects, plus `settings` for the worktree folder, temp branch prefix, remote and branch naming.
+- `projects/history-ignore`: folders whose Claude conversations never show in the history, one per line (`~` allowed).
 - `prefix/config.json`: the prefix panel (`"show": "side" | "top" | "hint" | "off"`), your own groups, rebinding keys.
 
 Everything is described in the **[reference](docs/reference.md)**, along with every `projects.*` command.
@@ -86,6 +89,7 @@ Switch layouts first (`ctrl-shift-l`) and remove wrangler's lines from `keys.jso
 - Branch renaming works with Claude only, for projects on this computer.
 - `my-spaces` and `my-agents` are copies of Herdr's `spaces` and `agents` mods and won't pick up Herdr's later changes to them.
 - Saving a layout uses an undocumented Herdr API that may change.
+- The history reads Claude Code's own transcripts (`~/.claude/projects`), an internal format that may change. Conversations on this computer only.
 
 ## Credits
 

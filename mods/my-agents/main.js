@@ -638,13 +638,14 @@ export default class Agents extends View {
       .border_t(1)
       .border_color(t.border)
       .text_size(13)
-      // personal: switcher, sort and new agent on the header; in the rail, new agent on top.
+      // personal: switcher, sort, past conversations and new agent on the header; in the rail, new agent on top.
       .when(!collapsed, (el) => el.child(h_flex().pl(16).pr(12).h(28).pt(6).flex_none().items_center().gap(2)
         .text_size(11.5).font_medium().text_color(t.dim)
         .child(div().flex_1().child("Agents"))
         .child(headerButton("ag-find", "mods/workspace-chrome/search.svg", "Switch agent (⌃⇧A)", t, () => run("projects.switch")))
         .child(headerButton("ag-sort", "mods/my-chrome/filter.svg", "Sort agents", t,
           () => openOverlay({ mod: "my-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } })))
+        .child(headerButton("ag-hist", "mods/workspace-chrome/clock.svg", "Past conversations (prefix r)", t, () => run("projects.history")))
         .child(headerButton("ag-new", "mods/workspace-chrome/square-pen.svg", "New agent", t, () => run("projects.compose")))))
       .when(collapsed, (el) => el.child(h_flex().h(36).flex_none().items_center().justify_center()
         .child(headerButton("ag-new", "mods/workspace-chrome/square-pen.svg", "New agent", t, () => run("projects.compose")))))

@@ -10,6 +10,8 @@
 // projects.wt-from:spaceId[|branch[|base]] (from that checkout: the dialog in HEAD mode, or at once),
 // projects.compose[:id[|where[|pick]]] (the "New agent" dialog), projects.agent-start:<json> (what it does, no dialog:
 // {id, where: "local" | "worktree", base?, branch?, agent: a programs agent key ("claude", "codex", …) or "none", prompt?}),
+// projects.resume:<json {id, cwd, title?, home?}> (a past Claude conversation, `claude --resume` in a new tab there; cwd gone: in home),
+// projects.history[:query[|messages]] (query @x: its project picker filtered by x) (past Claude conversations to resume: history.sh over data/projects/history.tsv; messages: search your messages),
 // projects.branch-name:id|prompt[|model[|timeout]] (toasts the name the rename hook would give a prompt),
 // projects.agent-menu:terminal, projects.agent-copy:terminal|branch|path, projects.agent-delete:terminal (the dialog),
 // projects.wt-delete:terminal[|force] (no dialog; refuses uncommitted changes without force),
@@ -195,6 +197,26 @@ async function compose(id, where, pick) {
     id = o?.saved ? o.project.id : null;
   }
   openOverlay({ mod: "projects-ui", kind: "dialog", width: 560, props: { view: "compose", ...(id ? { id } : {}), ...(where ? { where } : {}), ...(pick ? { pick: true } : {}) } });
+}
+
+/** Resumes a past Claude conversation, o = {id, cwd, title, home?}: a new tab in the space at cwd, else a new space there.
+ *  When cwd is gone (a deleted worktree), in home (its project's folder) else ~: `claude --resume` finds it from anywhere. */
+async function resume(o) {
+  const here = async (d) => d && (await exec("test", ["-d", expand(d)]).catch(() => null))?.code === 0;
+  const folder = (await here(o.cwd)) ? o.cwd : (await here(o.home)) ? expand(o.home) : expand("~");
+  if (folder !== o.cwd) toast("Folder is gone", `${tilde(o.cwd)} no longer exists: resuming in ${tilde(folder)}.`, "info");
+  const argv = [...(await agentRun("claude")), ...(await claudeArgs()), "--resume", o.id];
+  const name = titleOf(o.title || "claude");
+  const s = await spaceFor({ folder, machine: null });
+  if (!s) {
+    if (!(await apply({ folder, layout: { tabs: [{ name, root: { pane: { argv, cwd: "." } } }] } }))) toast("Couldn't resume", "The space didn't appear in time.", "error");
+    return;
+  }
+  run("space.select", { id: s.id });
+  const known = new Set(s.tabs.map((x) => x.id));
+  run("tab.new", { space: s.id, folder, name, argv });
+  const tab = await until(() => spaces().find((x) => x.id === s.id)?.tabs.find((x) => !known.has(x.id))?.id);
+  if (tab) run("tab.select", { id: tab });
 }
 
 async function agentStart(json) {
@@ -392,6 +414,8 @@ export default class Projects extends View {
     else if (name === "refresh") await refresh(arg ? expand(arg) : null);
     else if (name === "compose") await compose(key, rest[0], rest[1]);
     else if (name === "agent-start" && arg) await agentStart(arg);
+    else if (name === "resume" && arg) await resume(JSON.parse(arg));
+    else if (name === "history") ui({ view: "history", q: key, messages: rest[0] === "messages" }, { kind: "popup", at: "top", offset: 40, width: 780, height: 600 });
     else if (name === "branch-name" && p) await nameTest(p, rest[0], rest[1], rest[2]);
     else if (name === "new-menu") { ui({ view: "new" }, { kind: "popup", width: 290, height: 560, ...atClick() }); if (space) refreshSpace(space); }
     else if (name === "space-menu" && key) await (rest[0] ? spaceMenu(key, rest[0]) : rowMenu(key));

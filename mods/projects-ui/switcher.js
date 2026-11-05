@@ -117,8 +117,8 @@ export const views = {
     draw(t) {
       const rows = this.rows(), n = rows.length;
       let at = rows.findIndex((r) => r.addr === this.sel);
-      if (at < 0) { at = 0; this.sel = rows[0]?.addr ?? null; }
-      reveal(this.list, at, MAX);
+      if (at < 0) { at = 0; this.sel = rows[0]?.addr ?? null; this.list.off = 0; }
+      if (!this.shown) { this.shown = true; reveal(this.list, at, MAX); }
       const sel = rows[at];
       return v_flex().id("switcher").track_focus(this.handle).size_full().bg(t.popover).text_size(13)
         .on_key_down((e, cx) => {
