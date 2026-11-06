@@ -346,16 +346,16 @@ export default class Agents extends View {
   cacheCheck() {
     const warn = this.cache.warn * 60000;
     const shown = focused()?.agent ?? null;
-    if (shown !== this.lastShown && this.lastShown !== undefined) this.opened = { address: shown, until: Date.now() + 10000 };
+    if (shown !== this.lastShown && this.lastShown !== undefined) this.arrived = { address: shown, until: Date.now() + 10000 };
     this.lastShown = shown;
-    const opened = this.opened?.address === shown && Date.now() < this.opened.until ? shown : null;
+    const opened = this.arrived?.address === shown && Date.now() < this.arrived.until ? shown : null;
     for (const a of agents()) {
       const c = this.cacheLeft(a);
       if (!c || c.left > warn) continue;
       const key = `${a.address}|${c.at}`;
       const open = c.left > 0 ? `open|${key}` : `open|${key}|cold`;
       if (a.address === opened && !this.warned.has(open)) {
-        this.opened = null;
+        this.arrived = null;
         this.warn(open, `open|${key}`, key);
         openOverlay({ mod: "projects-ui", kind: "dialog", width: 420, props: { view: "cache", terminal: a.address, at: c.at, ttl: this.cache.ttl, sid: c.sid } });
         continue;
