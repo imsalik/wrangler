@@ -342,18 +342,21 @@ export default class Agents extends View {
   }
 
   // personal: a toast when a waiting agent's cache nears its end; a popup when one with a cooling or cold
-  // cache is opened. Each once per request.
+  // cache is opened (for 10 s after, while its session is still being read). Each once per request and phase.
   cacheCheck() {
     const warn = this.cache.warn * 60000;
     const shown = focused()?.agent ?? null;
-    const opened = shown !== this.lastShown && this.lastShown !== undefined;
+    if (shown !== this.lastShown && this.lastShown !== undefined) this.opened = { address: shown, until: Date.now() + 10000 };
     this.lastShown = shown;
+    const opened = this.opened?.address === shown && Date.now() < this.opened.until ? shown : null;
     for (const a of agents()) {
       const c = this.cacheLeft(a);
       if (!c || c.left > warn) continue;
       const key = `${a.address}|${c.at}`;
-      if (opened && a.address === shown && !this.warned.has(`open|${key}`)) {
-        this.warn(`open|${key}`, key);
+      const open = c.left > 0 ? `open|${key}` : `open|${key}|cold`;
+      if (a.address === opened && !this.warned.has(open)) {
+        this.opened = null;
+        this.warn(open, `open|${key}`, key);
         openOverlay({ mod: "projects-ui", kind: "dialog", width: 420, props: { view: "cache", terminal: a.address, at: c.at, ttl: this.cache.ttl, sid: c.sid } });
         continue;
       }

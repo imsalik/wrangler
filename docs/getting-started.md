@@ -69,7 +69,7 @@ Each Agents row shows the project, what the agent is working on, and its branch.
 
 The Agents list (Priority sort, from the sort button on the Agents header) keeps the agents waiting on you at the top: **Needs you** first, then **Done**, then **Idle**, each with how long ago it stopped ("3m ago"). **Working** agents sit at the bottom with how long they've been running; it shows three, then an "N more" row. Hover an idle agent for an **x** that closes its pane (and its space, when that was the only pane there).
 
-Claude keeps a conversation in its prompt cache for an hour after its last reply. In the last 10 minutes a waiting Claude agent shows an amber hourglass with the minutes left (and a toast if you're elsewhere); after that a blue **cold** snowflake. Opening a cooling or cold agent shows a popup once with how many tokens the next message re-sends. A session that hasn't sent anything yet shows a grey **draft** pencil instead of a time.
+Claude keeps a conversation in its prompt cache for an hour after its last reply. In the last 10 minutes a waiting Claude agent shows an amber hourglass with the minutes left (and a toast if you're elsewhere); after that a blue **cold** snowflake. Opening a cooling or cold agent shows a popup (once while cooling, once more when cold) with how many tokens the next message re-sends. A session that hasn't sent anything yet shows a grey **draft** pencil instead of a time.
 
 ![Agents list: Needs you, Done and Idle on top, Working at the bottom](images/agents-list.png)
 
