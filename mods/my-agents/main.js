@@ -144,7 +144,7 @@ export default class Agents extends View {
       this.lookup(cx);
       // personal: Claude sub-agents and sessions, reread while an agent works or a sub-agent is listed, else every 30 s.
       if (!this.reading && (this.subs.size || Date.now() - this.readAt > 30000 || agents().some((a) => a.status === "working"))) this.readSubs(cx);
-      this.cacheCheck();
+      this.cacheCheck(cx);
     });
     // personal: terminal → its running Claude sub-agents ({id, type, desc, at}).
     this.subs = new Map();
@@ -158,11 +158,11 @@ export default class Agents extends View {
 
   readSubs(cx) {
     this.reading = true;
-    this.readAt = Date.now();
+    const started = this.readAt = Date.now();
     cx.spawn(async (cx) => {
       const r = await exec("sh", [LIST_SUBS(), `${home()}/.claude`]).catch(() => null);
       const out = r?.stdout ?? "";
-      if (out === this.subsOut) { this.reading = false; return; }
+      if (out === this.subsOut) { this.reading = false; this.readDone = started; return; }
       this.subsOut = out;
       const m = new Map();
       this.sessions = new Map();
@@ -189,6 +189,7 @@ export default class Agents extends View {
         this.replies.set(ss.sid, { key: ss.at, at: ts ? Date.parse(ts) || 0 : 0 });
       }
       this.reading = false;
+      this.readDone = started;
       cx.notify();
     });
   }
@@ -323,7 +324,7 @@ export default class Agents extends View {
     if (a.status === "working" || !/claude/i.test(a.app ?? "")) return null;
     const s = this.sessions.get(a.address);
     const r = s && this.replies.get(s.sid);
-    const at = s ? (s.status === "busy" || r?.key !== s.at ? null : r.at || null) : this.changed[a.address]?.req ?? null;
+    const at = s ? (s.status === "busy" || r?.key !== s.at ? null : r.at || null) : machineOf(a.address) ? this.changed[a.address]?.req ?? null : null;
     return at == null ? null : { left: this.cache.ttl * 60000 - (now - at), at, sid: s?.sid ?? null };
   }
 
@@ -342,13 +343,16 @@ export default class Agents extends View {
   }
 
   // personal: a toast when a waiting agent's cache nears its end; a popup when one with a cooling or cold
-  // cache is opened (for 10 s after, while its session is still being read). Each once per request and phase.
-  cacheCheck() {
+  // cache is opened, judged by a session read started after opening (within 10 s). Each once per request and phase.
+  cacheCheck(cx) {
     const warn = this.cache.warn * 60000;
     const shown = focused()?.agent ?? null;
-    if (shown !== this.lastShown && this.lastShown !== undefined) this.arrived = { address: shown, until: Date.now() + 10000 };
+    const now = Date.now();
+    if (shown !== this.lastShown && this.lastShown !== undefined) this.arrived = { address: shown, at: now };
     this.lastShown = shown;
-    const opened = this.arrived?.address === shown && Date.now() < this.arrived.until ? shown : null;
+    const arrived = this.arrived?.address === shown && now - this.arrived.at < 10000 ? this.arrived : null;
+    if (arrived && !this.reading && !(this.readAt >= arrived.at)) this.readSubs(cx);
+    const opened = arrived && this.readDone >= arrived.at ? shown : null;
     for (const a of agents()) {
       const c = this.cacheLeft(a);
       if (!c || c.left > warn) continue;
