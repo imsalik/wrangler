@@ -256,7 +256,7 @@ export default class Agents extends View {
       .child(div().flex_1().min_w(0).truncate().child(w.branch));
   }
 
-  // personal: a card's state on its top line: Working 3m, Needs you, Done, draft, or how long it has been idle.
+  // personal: a card's state on its project line: Working 3m, Needs you, Done, draft, or how long it has been idle.
   // personal: its cache cooling (amber, minutes left) or cold (red) when Claude's prompt cache is near or past its end.
   badge(t, st, ms, cache, draft, addr) {
     const label = (color, icon, text) => h_flex().flex_none().gap(4).items_center().text_size(11.5).text_color(color).child(icon).child(text);
@@ -603,9 +603,9 @@ export default class Agents extends View {
           cx.notify();
         })
         .child(svg("mods/workspace-chrome/x.svg").size(13));
-      // personal: a card. Top line: its project (else space) and state; then the session (Claude's current task,
-      // else a named tab) after the agent's icon; then the branch. Under a project (or space) header, no top line:
-      // the state and hover buttons end the branch line (the session line when there's no branch).
+      // personal: a card. Top line: the session (Claude's current task, else a named tab) after the agent's icon, with
+      // the hover buttons at its end; then its project (else space) and state; then the branch. Under a project (or space)
+      // header, no project line: the state ends the branch line (the session line when there's no branch).
       const w = this.where(a);
       const ctx = w?.p.name ?? a.space_name ?? "";
       const st = rankOf(a) === RANK.done && a.status !== "blocked" ? "done" : a.status;
@@ -613,11 +613,8 @@ export default class Agents extends View {
       const head = (sub && sub !== a.program?.name ? sub : null) ?? more ?? (label(a) || a.program?.name || a.address);
       const hovered = this.hovered === a.address;
       const underHeader = !byPriority && !isPinned;
-      const ends = (el) => el
-        .when(hovered, (e) => e.child(pin))
-        .when(hovered && rankOf(a) === RANK.idle, (e) => e.child(close))
-        .child(this.badge(t, st, when ? now - when : null, this.cacheLeft(a, now), this.isDraft(a), a.address));
-      const top = !underHeader && ends(h_flex()
+      const state = () => this.badge(t, st, when ? now - when : null, this.cacheLeft(a, now), this.isDraft(a), a.address);
+      const ctxLine = !underHeader && h_flex()
         .h(20)
         .gap(6)
         .items_center()
@@ -626,7 +623,8 @@ export default class Agents extends View {
         .child(div().flex_shrink(1).min_w(0).truncate().text_color(t.muted).child(ctx))
         .when(Boolean(machine), (el) => el.child(this.remote(t, a, machine)))
         .when(isPinned, (el) => el.child(svg("mods/workspace-chrome/pin.svg").size(11).flex_none().text_color(t.dim)))
-        .child(div().flex_1()));
+        .child(div().flex_1())
+        .child(state());
       const main = h_flex()
         .h(22)
         .gap(7)
@@ -636,7 +634,9 @@ export default class Agents extends View {
           .text_color(idle ? t.muted : t.foreground).child(head))
         .when(subs.length > 0, (el) => el.child(fold(a, subs)))
         .when(underHeader && Boolean(machine), (el) => el.child(this.remote(t, a, machine)))
-        .when(underHeader && !w?.branch, ends);
+        .when(underHeader && !w?.branch, (el) => el.child(state()))
+        .when(hovered, (e) => e.child(pin))
+        .when(hovered && rankOf(a) === RANK.idle, (e) => e.child(close));
       return v_flex()
         .id(`ag-${a.address}`)
         .px(10)
@@ -655,11 +655,11 @@ export default class Agents extends View {
         .on_click(() => run("pane.focus", { pane: a.pane }))
         // personal: agent menu
         .on_mouse_down("right", (e) => run(`projects.agent-menu:${a.address}@${Math.round(e.position.x)},${Math.round(e.position.y)}`))
-        .when(!underHeader, (el) => el.child(top))
         .child(main)
+        .when(!underHeader, (el) => el.child(ctxLine))
         // personal: branch line
         .when(Boolean(w?.branch), (el) => el.child(underHeader
-          ? ends(h_flex().h(18).gap(6).items_center().child(this.branchLine(t, w).flex_1().min_w(0)))
+          ? h_flex().h(18).gap(6).items_center().child(this.branchLine(t, w).flex_1().min_w(0)).child(state())
           : this.branchLine(t, w)));
     };
 
