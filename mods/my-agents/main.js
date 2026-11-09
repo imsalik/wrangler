@@ -603,9 +603,10 @@ export default class Agents extends View {
           cx.notify();
         })
         .child(svg("mods/workspace-chrome/x.svg").size(13));
-      // personal: a card. Top line: the session (Claude's current task, else a named tab) after the agent's icon, with
-      // the hover buttons at its end; then its project (else space) and state; then the branch. Under a project (or space)
-      // header, no project line: the state ends the branch line (the session line when there's no branch).
+      // personal: a card. Top line: the session (Claude's current task, else a named tab), with the hover buttons at its
+      // end; then its project (else space), the agent's icon and state; then the branch. Under a project (or space)
+      // header, no project line: the agent's icon leads the session and the state ends the branch line (the session
+      // line when there's no branch).
       const w = this.where(a);
       const ctx = w?.p.name ?? a.space_name ?? "";
       const st = rankOf(a) === RANK.done && a.status !== "blocked" ? "done" : a.status;
@@ -621,6 +622,7 @@ export default class Agents extends View {
         .text_size(12)
         .child(h_flex().size(14).flex_none().rounded(4).bg(dot(a, w)).items_center().justify_center().text_size(9).font_bold().text_color("#ffffff").child([...ctx][0]?.toUpperCase() ?? "?"))
         .child(div().flex_shrink(1).min_w(0).truncate().text_color(t.muted).child(ctx))
+        .when(Boolean(pic), (el) => el.child(icon(a.program, 13, t.foreground)))
         .when(Boolean(machine), (el) => el.child(this.remote(t, a, machine)))
         .when(isPinned, (el) => el.child(svg("mods/workspace-chrome/pin.svg").size(11).flex_none().text_color(t.dim)))
         .child(div().flex_1())
@@ -629,7 +631,7 @@ export default class Agents extends View {
         .h(22)
         .gap(7)
         .items_center()
-        .when(Boolean(pic), (el) => el.child(pic))
+        .when(underHeader && Boolean(pic), (el) => el.child(pic))
         .child(div().flex_1().min_w(0).truncate().text_size(13.5).when(a.focused, (el) => el.font_medium())
           .text_color(idle ? t.muted : t.foreground).child(head))
         .when(subs.length > 0, (el) => el.child(fold(a, subs)))
