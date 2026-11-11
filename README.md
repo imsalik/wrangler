@@ -19,6 +19,7 @@ Made for anyone coming from the herdr TUI or tmux who wants the same keyboard-fi
 - **Prompt cache warnings** for waiting Claude agents: an amber hourglass with the minutes left in the last 10 minutes of Claude's 1 hour prompt cache, a toast as it starts, a blue "cold" snowflake once it's gone, and a popup when you open a cooling or cold agent saying how many tokens the next message re-sends. A Claude agent that hasn't sent anything yet shows a grey "draft" pencil.
 - **Agent switcher** with the agents that need you first, and a peek at any of them without leaving where you are.
 - **Conversation history**: every past Claude conversation, newest first, searched by title (fuzzy) or inside your own messages and filtered by project, worktrees included. Enter resumes it with `claude --resume`, in the permission mode it last ran in and in its folder (or its project's, when a worktree is gone).
+- **Review panel** (Changes): every changed file's diff in one scroll with a file sidebar and vim-style keys. Uncommitted, or Branch for everything since the branch left its base (any branch you pick), committed or not like the PR, with uncommitted lines marked. Comment on lines or ranges across files, then send them all to the agent as one short message (places and words, no code).
 - **Prefix keys** (optional), which-key style.
 
 ## Requirements
@@ -38,7 +39,7 @@ cp layouts/* ~/.config/herdr-app/layouts/
 herdr-app do layout.switch '{"name":"wrangler"}'
 ```
 
-Plain Herdr mods and a layout: copy them into your Herdr home (`$HERDR_APP_HOME` if you set one) however you like. Skip `mods/prefix` if you don't want the prefix. Check first that none of the names are taken (`projects`, `projects-ui`, `my-spaces`, `my-agents`, `prefix`, `wrangler.json`). To update, pull and copy again. `ctrl-shift-l` switches back to your own layout.
+Plain Herdr mods and a layout: copy them into your Herdr home (`$HERDR_APP_HOME` if you set one) however you like. Skip `mods/prefix` if you don't want the prefix. Check first that none of the names are taken (`projects`, `projects-ui`, `my-spaces`, `my-agents`, `my-changes`, `prefix`, `wrangler.json`). To update, pull and copy again. `ctrl-shift-l` switches back to your own layout.
 
 ## Keys
 
@@ -80,7 +81,7 @@ Everything is described in the **[reference](docs/reference.md)**, along with ev
 
 ```sh
 cd ~/.config/herdr-app
-rm -r mods/{projects,projects-ui,my-spaces,my-agents,prefix} layouts/wrangler.json layouts/wrangler-preview.svg
+rm -r mods/{projects,projects-ui,my-spaces,my-agents,my-changes,prefix} layouts/wrangler.json layouts/wrangler-preview.svg
 ```
 
 Switch layouts first (`ctrl-shift-l`) and remove wrangler's lines from `keys.json`. Worktrees are plain git worktrees.
@@ -88,7 +89,7 @@ Switch layouts first (`ctrl-shift-l`) and remove wrangler's lines from `keys.jso
 ## Limitations
 
 - Branch renaming works with Claude only, for projects on this computer.
-- `my-spaces` and `my-agents` are copies of Herdr's `spaces` and `agents` mods and won't pick up Herdr's later changes to them.
+- `my-spaces`, `my-agents` and `my-changes` are copies of Herdr's `spaces`, `agents` and `changes` mods and won't pick up Herdr's later changes to them.
 - Saving a layout uses an undocumented Herdr API that may change.
 - The history reads Claude Code's own transcripts (`~/.claude/projects`), an internal format that may change. Conversations on this computer only.
 

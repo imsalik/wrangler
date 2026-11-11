@@ -136,4 +136,4 @@ The prompt is [`mods/projects/naming-prompt.txt`](../mods/projects/naming-prompt
 
 ## Layout
 
-[`layouts/wrangler.json`](../layouts/wrangler.json) is a copy of Herdr's `main` layout (0.1.7) with `my-spaces` and `my-agents` in the sidebar and a hidden 0px `projects` block that runs the commands. Don't add a second, visible `projects` block: commands would run twice. The edits in `my-spaces` and `my-agents` are marked `// personal:` so they can be reapplied to newer Herdr versions.
+[`layouts/wrangler.json`](../layouts/wrangler.json) is a copy of Herdr's `main` layout (0.1.7) with `my-spaces` and `my-agents` in the sidebar, `my-changes` in the panel, and a hidden 0px `projects` block that runs the commands. Don't add a second, visible `projects` block: commands would run twice. The edits in `my-spaces`, `my-agents` and `my-changes` are marked `// personal:` so they can be reapplied to newer Herdr versions.
