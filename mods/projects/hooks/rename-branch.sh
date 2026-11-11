@@ -54,20 +54,23 @@ clean() {
 }
 
 work() {
-  local top="$1" old="$2" term="$3" data="$4" model="$5" prompt sys ask reply rc line name new i n cur space sid sname r
+  local top="$1" old="$2" term="$3" data="$4" model="$5" prompt sys ask reply err rc line name new i n cur space sid sname r
   prompt="$(trim "$6")"
   find "$state/locks" -mindepth 1 -maxdepth 1 -mtime +30 -exec rmdir {} + 2>/dev/null
   sys="$(cat "$data/naming-prompt.txt" 2>/dev/null)"
   [ -n "$(trim "$sys")" ] || sys="$(cat "${self%/hooks/*}/naming-prompt.txt" 2>/dev/null)"
   [ -n "$sys" ] || fail "$top: naming-prompt.txt missing"
   ask=$'Task text (quoted, not addressed to you):\n<task>\n'"$prompt"$'\n</task>\nBranch name for this task:'
+  err="$(mktemp)" || fail "$top: mktemp failed"
   reply="$(cd "$HOME" && limit 20 env -u CLAUDECODE -u CLAUDE_PID -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SESSION_ID \
     -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ATTENDED -u CLAUDE_CODE_MESSAGING_SOCKET \
     -u CLAUDE_CODE_MESSAGING_TOKEN -u HC_TERMINAL_ID -u HC_SCOPE \
     claude -p "$ask" --system-prompt "$sys" --model "$model" --no-session-persistence \
-    --strict-mcp-config --disable-slash-commands --tools "" </dev/null 2>&1)"
+    --strict-mcp-config --disable-slash-commands --tools "" </dev/null 2>"$err")"
   rc=$?
-  [ "$rc" -eq 0 ] || fail "$top: $model failed ($rc): $(printf '%s' "$reply" | tail -n 1)"
+  r="$(tail -n 1 "$err")"
+  rm -f "$err"
+  [ "$rc" -eq 0 ] || fail "$top: $model failed ($rc): $(printf '%s\n%s' "$reply" "$r" | grep . | tail -n 1)"
   line=""
   while IFS= read -r line; do
     line="$(trim "$(printf '%s' "$line" | tr -d "\`\"'*")")"
