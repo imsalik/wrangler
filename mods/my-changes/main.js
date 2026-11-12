@@ -39,8 +39,15 @@ function addStats(result, stats) {
 const countLines = (text) => text ? text.split("\n").length - Number(text.endsWith("\n")) : 0;
 
 // Text draws a tab as nothing: pad each to the next 4-column stop.
-const untab = (text) => text.replace(/[^\t]*\t/g, (s) => s.slice(0, -1).padEnd((s.length - 1) - (s.length - 1) % 4 + 4));
+const untab = (text) => {
+  if (!text.includes("\t")) return text;
+  const parts = text.split("\t");
+  let out = "";
+  for (let i = 0; i < parts.length - 1; i++) { out += parts[i]; out += " ".repeat(4 - out.length % 4); }
+  return out + parts.at(-1);
+};
 const clip = (line) => line.length > 4000 ? line.slice(0, 4000) + "… (line truncated)" : line;
+const lineText = (line) => untab(clip(line.slice(1))) || " ";
 
 // personal: one `git diff` for every file, split per file by its "diff --git a/<p> b/<p>" header.
 function splitDiff(stdout, paths) {
@@ -61,7 +68,7 @@ function hunkRows(path, lines) {
     const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@ ?(.*)/.exec(line);
     if (match) { old = +match[1]; next = +match[2]; started = true; rows.push({ kind: "@", path, text: line, context: match[3], at: next }); continue; }
     if (!started) continue;
-    const kind = line[0], text = clip(untab(line.slice(1))) || " ";
+    const kind = line[0], text = lineText(line);
     if (kind === "-") { const o = old++; rows.push({ kind, path, number: o, old: o, text }); }
     else if (kind === "+") { const n = next++; rows.push({ kind, path, number: n, next: n, text }); }
     else if (kind === " ") { const o = old++, n = next++; rows.push({ kind, path, number: n, old: o, next: n, text }); }
@@ -77,7 +84,7 @@ function uncommitted(lines) {
     const m = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(line);
     if (m) next = +m[1];
     else if (line.startsWith("+") && !line.startsWith("+++")) added.add(next++);
-    else if (line.startsWith("-") && !line.startsWith("---")) removed.add(untab(line.slice(1)) || " ");
+    else if (line.startsWith("-") && !line.startsWith("---")) removed.add(lineText(line));
   }
   return { added, removed };
 }
@@ -125,15 +132,16 @@ export default class Changes extends View {
   }
 
   refresh(cx) {
-    if (this.loading) return;
+    // A run the engine interrupted never clears `loading`: after 30s a new one may start.
+    if (this.loading && Date.now() - this.loading < 30000) return;
     const { cwd, on } = location(), context = key();
     if (context !== this.context) {
       this.context = context; this.root = null; this.files = []; this.rows = []; this.picking = false;
       if (!this.composing) this.sel = null;
-      this.error = null; this.note = null; this.info = null; this.since = null; this.watched = null; this.limited = false;
+      this.error = null; this.note = null; this.info = null; this.since = null; this.base = null; this.branch = null; this.watched = null; this.limited = false;
     }
     if (!cwd) return;
-    this.loading = true;
+    this.loading = Date.now();
     cx.spawn(async (cx) => {
       try {
         const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on });
@@ -152,7 +160,7 @@ export default class Changes extends View {
         this.diffWidth = Math.max(300, ...rows.map((row) => (row.text?.length ?? 0) * 7.5 + 130));
         this.watch(root, cx);
       } catch (e) { if (key() === context) this.error = String(e); }
-      finally { this.loading = false; cx.notify(); }
+      finally { this.loading = 0; cx.notify(); }
     });
   }
 
