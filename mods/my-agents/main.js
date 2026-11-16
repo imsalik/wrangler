@@ -604,7 +604,7 @@ export default class Agents extends View {
         .child(svg("mods/workspace-chrome/x.svg").size(13));
       // personal: a card. Top line: the session (Claude's current task, else a named tab), with the hover buttons at its
       // end; then its project (else space) and state; then the branch. Under a project (or space) header, no project
-      // line: the state ends the branch line (the session line when there's no branch). The agent's icon ends the last line.
+      // line: the state ends the branch line (the session line when there's no branch). The sub-agent count and the agent's icon end the last line.
       const w = this.where(a);
       const ctx = w?.p.name ?? a.space_name ?? "";
       const st = rankOf(a) === RANK.done && a.status !== "blocked" ? "done" : a.status;
@@ -615,6 +615,7 @@ export default class Agents extends View {
       const head = (sub && sub !== a.program?.name ? sub : null) ?? more ?? (label(a) || a.program?.name || a.address);
       const hovered = this.hovered === a.address;
       const underHeader = !byPriority && !isPinned;
+      const tail = (el) => el.when(subs.length > 0, (e) => e.child(fold(a, subs))).when(Boolean(mark), (e) => e.child(mark));
       const state = () => this.badge(t, st, when ? now - when : null, this.cacheLeft(a, now), this.isDraft(a), a.address);
       const ctxLine = !underHeader && h_flex()
         .h(20)
@@ -627,19 +628,18 @@ export default class Agents extends View {
         .when(isPinned, (el) => el.child(svg("mods/workspace-chrome/pin.svg").size(11).flex_none().text_color(t.dim)))
         .child(div().flex_1())
         .child(state())
-        .when(last === "ctx" && Boolean(mark), (el) => el.child(mark));
+        .when(last === "ctx", tail);
       const main = h_flex()
         .h(22)
         .gap(7)
         .items_center()
         .child(div().flex_1().min_w(0).truncate().text_size(13.5).when(a.focused, (el) => el.font_medium())
           .text_color(idle ? t.muted : t.foreground).child(head))
-        .when(subs.length > 0, (el) => el.child(fold(a, subs)))
         .when(underHeader && Boolean(machine), (el) => el.child(this.remote(t, a, machine)))
         .when(underHeader && !w?.branch, (el) => el.child(state()))
         .when(hovered, (e) => e.child(pin))
         .when(hovered && rankOf(a) === RANK.idle, (e) => e.child(close))
-        .when(last === "main" && Boolean(mark), (el) => el.child(mark));
+        .when(last === "main", tail);
       return v_flex()
         .id(`ag-${a.address}`)
         .px(10)
@@ -661,10 +661,9 @@ export default class Agents extends View {
         .child(main)
         .when(!underHeader, (el) => el.child(ctxLine))
         // personal: branch line
-        .when(Boolean(w?.branch), (el) => el.child(h_flex().h(18).gap(6).items_center()
+        .when(Boolean(w?.branch), (el) => el.child(tail(h_flex().h(18).gap(6).items_center()
           .child(this.branchLine(t, w).flex_1().min_w(0))
-          .when(underHeader, (r) => r.child(state()))
-          .when(Boolean(mark), (r) => r.child(mark))));
+          .when(underHeader, (r) => r.child(state())))));
     };
 
     // Groups in list order: priority sections, or (personal) projects, else the agent's space, each where its first agent is.
