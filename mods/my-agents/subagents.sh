@@ -19,7 +19,7 @@ for s in "$c"/sessions/*.json; do
     grep -q '"finished": *true' "$m" && continue
     [ -n "$(find "$m" "${m%.meta.json}.jsonl" -maxdepth 0 -mmin -15 2>/dev/null)" ] || continue
     id=${m##*/agent-}
-    printf '%s\t%s\t%s\t' "$t" "${id%.meta.json}" "$(stat -c %W "$m")"
+    printf '%s\t%s\t%s\t' "$t" "${id%.meta.json}" "$(stat -c %W "$m" 2>/dev/null || stat -f %B "$m")"
     tr -d '\n' <"$m"
     echo
   done
