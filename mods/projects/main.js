@@ -172,7 +172,7 @@ async function launch(o, stage = () => {}) {
   if (s) run("space.select", { id: s.id });
   else {
     stage("Opening space…");
-    const only = cmd && !p.layout?.tabs?.length ? { tabs: [{ name: prompt ? titleOf(prompt) : key, root: { pane: { argv: cmd, cwd: "." } } }] } : null;
+    const only = cmd && !p.layout?.tabs?.length ? { tabs: [{ name: tabName(key, prompt) ?? null, root: { pane: { argv: cmd, cwd: "." } } }] } : null;
     const a = await apply({ folder, machine, layout: only ?? p.layout, ...(cmd ? { agent: isAgent(key, cmd), task: prompt, args: extra } : {}) });
     if (!a) throw new Error("The space didn't appear in time.");
     ({ space, tasked } = a);
@@ -181,13 +181,16 @@ async function launch(o, stage = () => {}) {
   if (cmd && !tasked) {
     stage(`Starting ${key}…`);
     const known = new Set(spaces().find((x) => x.id === space)?.tabs.map((x) => x.id) ?? []);
-    run("tab.new", { space, folder, name: prompt ? titleOf(prompt) : key, argv: viaLogin([...cmd, ...extra], machine), ...(prompt ? { task: prompt } : {}) });
+    run("tab.new", { space, folder, name: tabName(key, prompt), argv: viaLogin([...cmd, ...extra], machine), ...(prompt ? { task: prompt } : {}) });
     tab = await until(() => spaces().find((x) => x.id === space)?.tabs.find((x) => !known.has(x.id))?.id);
     if (!tab) throw new Error(`The ${key} tab didn't appear in time.`);
     run("tab.select", { id: tab });
   }
   return { space, folder, branch, tab };
 }
+
+/** A new agent tab's name: none for Claude, which titles its tab with its session name. */
+const tabName = (key, prompt) => key === "claude" ? undefined : prompt ? titleOf(prompt) : key;
 
 /** The composer, preselecting id, else the focused space's saved project. */
 async function compose(id, where, pick) {
@@ -206,15 +209,14 @@ async function resume(o) {
   const folder = (await here(o.cwd)) ? o.cwd : (await here(o.home)) ? expand(o.home) : expand("~");
   if (folder !== o.cwd) toast("Folder is gone", `${tilde(o.cwd)} no longer exists: resuming in ${tilde(folder)}.`, "info");
   const argv = [...(await agentRun("claude")), ...(await claudeArgs()), ...modeArgs(await lastMode(o.id)), "--resume", o.id];
-  const name = titleOf(o.title || "claude");
   const s = await spaceFor({ folder, machine: null });
   if (!s) {
-    if (!(await apply({ folder, layout: { tabs: [{ name, root: { pane: { argv, cwd: "." } } }] } }))) toast("Couldn't resume", "The space didn't appear in time.", "error");
+    if (!(await apply({ folder, layout: { tabs: [{ name: null, root: { pane: { argv, cwd: "." } } }] } }))) toast("Couldn't resume", "The space didn't appear in time.", "error");
     return;
   }
   run("space.select", { id: s.id });
   const known = new Set(s.tabs.map((x) => x.id));
-  run("tab.new", { space: s.id, folder, name, argv });
+  run("tab.new", { space: s.id, folder, argv });
   const tab = await until(() => spaces().find((x) => x.id === s.id)?.tabs.find((x) => !known.has(x.id))?.id);
   if (tab) run("tab.select", { id: tab });
 }
