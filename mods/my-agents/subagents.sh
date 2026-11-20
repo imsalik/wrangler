@@ -9,7 +9,11 @@ for s in "$c"/sessions/*.json; do
   pid=${s##*/}
   pid=${pid%.json}
   case $pid in '' | *[!0-9]*) continue ;; esac
-  t=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n 's/^HC_TERMINAL_ID=//p')
+  if [ -r "/proc/$pid/environ" ]; then
+    t=$(tr '\0' '\n' <"/proc/$pid/environ" | sed -n 's/^HC_TERMINAL_ID=//p')
+  else
+    t=$(ps eww -o command= -p "$pid" 2>/dev/null | tr ' ' '\n' | sed -n 's/^HC_TERMINAL_ID=//p' | head -n 1)
+  fi
   [ -n "$t" ] || continue
   sid=$(sed -n 's/.*"sessionId": *"\([A-Za-z0-9-]*\)".*/\1/p' "$s")
   [ -n "$sid" ] || continue
